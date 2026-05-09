@@ -95,7 +95,7 @@ void IwatodaiStreetsView::Init() {
     bgUpdate();
 
     playerCtrl = new CharacterController(
-        IWATODAI_STREETS_MAP_WIDTH, IWATODAI_STREETS_MAP_HEIGHT, &iwatodai_streets_collision_map[0][0],
+        IWATODAI_STREETS_MAP_WIDTH, IWATODAI_STREETS_MAP_HEIGHT, &iwatodai_streets_map[0][0],
         tileSize, worldOffsetX, worldOffsetZ, characterSize,
         speed, angleIncrement, distance, lookAhead,
         angle, characterTranslate, characterFacingAngle

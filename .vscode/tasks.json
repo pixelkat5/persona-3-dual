@@ -1,6 +1,7 @@
+// See https://go.microsoft.com/fwlink/?LinkId=733558
+// for the documentation about the tasks.json format
+
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
     "version": "2.0.0",
     "tasks": [
         {
@@ -10,20 +11,7 @@
             "args": [
                 "DEBUG=1"
             ],
-            "problemMatcher": []
-        },
-        {
-            "label": "make release",
-            "type": "process",
-            "command": "make",
-            "args": [
-                "DEBUG=0"
-            ],
-            "problemMatcher": [],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
+            "problemMatcher": ["$gcc"]
         },
         {
             "label": "clean",
@@ -35,44 +23,38 @@
             "problemMatcher": []
         },
         {
-            "label": "run",
-            "type": "shell",
-            "isBackground": true,
-            "command": "C:\\desmume\\DeSmuME_0.9.11_x86.exe",
-            "args": [
-                "${workspaceFolder}/${workspaceFolderBasename}.nds"
-            ],
-            "presentation": {
-                "clear": true,
-                "reveal": "always"
-            },
-            "problemMatcher": []
-        },
-        {
             "label": "gdb-debug",
-            "type": "shell",
+            "type": "process",
+            // OS specific commands to launch melonDS
+            "windows": {
+                // For this to work, Windows needs to know where melonDS.exe lives.
+                // 1. Extract melonDS to a permanent folder (e.g., C:\Emulators\melonDS\)
+                // 2. Search Windows for "Environment Variables" -> Edit system environment variables.
+                // 3. Click "Environment Variables...", find "Path" in the top list, and click Edit.
+                // 4. Click New, paste your folder path, and hit OK.
+                // 5. RESTART VS CODE so it can see the new path.
+                "command": "melonDS",
+                "args": ["${workspaceFolder}/${workspaceFolderBasename}.nds"]
+            },
+            "linux": {
+                "command": "melonDS",
+                "args": ["${workspaceFolder}/${workspaceFolderBasename}.nds"]
+            },
+            "osx": {
+                "command": "open",
+                "args": ["-a", "melonDS", "${workspaceFolder}/${workspaceFolderBasename}.nds"]
+            },
             "dependsOn": [
                 "make debug"
             ],
-            "isBackground": false,
-            "command": "C:\\desmume\\DeSmuME_0.9.11_x86_dev+.exe",
-            "args": [
-                "--arm9gdb=20000",
-                "${workspaceFolder}/${workspaceFolderBasename}.nds"
-            ],
-            "presentation": {
-                "clear": true,
-                "reveal": "always"
-            },
             "problemMatcher": []
         },
         {
             "label": "stop-emulation",
-            "type": "shell",
-            "command": "taskkill",
+            "type": "process",
+            "command": "killall",
             "args": [
-                "/FI",
-                "imagename eq DeSmuME*"
+                "melonDS"
             ],
             "problemMatcher": []
         }

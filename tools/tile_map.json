@@ -1,0 +1,22 @@
+{
+    "TILE_MAP": {
+      "w": 0,
+      "c": 1,
+      "s": 2,
+      "p": 3,
+      "e": 4,
+      "a": 0,
+      "c_a": 100,
+      "x": 8
+    },
+    "TILE_MAP_META": {
+      "w": "NO_COLLISION",
+      "c": "COLLISION",
+      "s": "SAVE",
+      "p": "PREV_SCENE",
+      "e": "NEXT_SCENE",
+      "a": "RESERVED",
+      "c_a": "CHARACTER_AKIHIKO",
+      "x": "DEBUG"
+    }
+  }

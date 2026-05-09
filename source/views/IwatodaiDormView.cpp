@@ -11,8 +11,8 @@
 // environment
 #include "environments/iwatodai_dorm.h"
 #include "texture.h"
-// collision (deprecated)
-#include "maps/iwatodaiDorm.h"
+// maps
+#include "maps/iwatodai_dorm.h"
 // dialogue
 #include "dialogue/demo_dialogue.h"
 
@@ -85,12 +85,10 @@ void IwatodaiDormView::Init()
     bgUpdate();
 
     // setup player controller
-    // NOTE: the collision map is currently being used here, but is just dummy data. This is an old implementation that will
-    // be deprecated, but is currently still in the workflow until the new collision system is fully implemented and tested.
-    playerCtrl = new CharacterController(MAP_WIDTH, MAP_HEIGHT, &collision_map[0][0], tileSize, worldOffsetX, worldOffsetZ, characterSize, speed, angleIncrement, distance, lookAhead, angle, characterTranslate, characterFacingAngle);
+    playerCtrl = new CharacterController(IWATODAI_DORM_MAP_WIDTH, IWATODAI_DORM_MAP_WIDTH, &iwatodai_dorm_map[0][0], tileSize, worldOffsetX, worldOffsetZ, characterSize, speed, angleIncrement, distance, lookAhead, angle, characterTranslate, characterFacingAngle);
 
     // setup music
-    musicCtrl.init("nitro:/music/changing_seasons.pcm", 0.0f, -1.0f);
+    musicCtrl.init(IWATODAI_DORM_MUSIC, 0.0f, -1.0f);
 
     // setup character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");

@@ -10,7 +10,7 @@ It handles geometry scaling, Z-up to Y-up coordinate conversion, material parsin
 
 ### Command Line Tools (Standalone)
 The CLI pipeline requires Python 3. No external dependencies are needed.
-1. Place `nds_build_environment.py` and `obj2environment.py` in your project's `tools/` directory (or anywhere accessible).
+1. Place `build_environment.py` and `obj2environment.py` in your project's `tools/` directory (or anywhere accessible).
 2. Ensure you have standard NDS development tools (devkitARM, GRIT) installed if you are building the output.
 
 ---
@@ -18,7 +18,7 @@ The CLI pipeline requires Python 3. No external dependencies are needed.
 ## How to Use Via Command Line
 If you already have an `.obj` file or are running a batch build script:
 ```bash
-python nds_build_environment.py models/tartarus_block1.obj data/env/ --source-blender --target-size 4.0
+python build_environment.py models/tartarus_block1.obj data/env/ --source-blender --target-size 4.0
 ```
 
 ---

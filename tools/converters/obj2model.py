@@ -1,8 +1,4 @@
-import sys
-import struct
-import argparse
-import json
-import os
+import struct, argparse, json, os
 
 FIFO_COLOR    = 0x20
 FIFO_TEXCOORD = 0x22
@@ -216,7 +212,7 @@ def convert_model_json(input_file, output_file, tex_width=None, tex_height=None,
             hout.write(f"    MODEL_{model_name.upper()}_{safe_name} = {i},\n")
         hout.write("};\n")
 
-    print(f"Converted {input_file} -> {bin_out} & {header_out}")
+    print(f"Written: {bin_out} / {header_out}")
 
 def convert(input_file, output_file, config):
     tex_w, tex_h = None, None

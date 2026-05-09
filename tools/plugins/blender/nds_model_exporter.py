@@ -31,14 +31,7 @@ bl_info = {
     "category": "Import-Export",
 }
 
-import bpy
-import bmesh
-import os
-import io
-import json
-import zipfile
-import re
-
+import bpy, bmesh, io, json, zipfile, re
 from bpy.props import StringProperty
 from bpy_extras.io_utils import ExportHelper
 

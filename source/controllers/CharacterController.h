@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "./geometry.h"
+#include "core/geometry.h"
 
 // TODO: move this to globals?
 enum class TileType {

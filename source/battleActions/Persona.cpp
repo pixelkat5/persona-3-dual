@@ -48,7 +48,8 @@ void Persona::execute()
         } 
         else
         {
-
+            
+            menuState = SelectSkill;
         } 
     }
 }

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Tools</title>
+    <link rel="icon" type="image/x-icon" href="/icon.bmp">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+
+    <nav>
+        <div class="nav-inner">
+            <a class="brand" href="/">
+                <span class="p3">P3</span>
+                <span class="dual">DUAL</span>
+            </a>
+
+            <div class="nav-right">
+                <a class="nav-link active" href="/">Tools</a>
+
+                <!--Theme toggle -->
+                <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme"
+                    title="Toggle dark/light mode">
+                    <!-- Sun, visible in dark mode -->
+                    <svg id="icon-sun" style="display:none" fill="none" stroke="currentColor" stroke-width="1.75"
+                        viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="4" />
+                        <path
+                            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                    <!-- Moon, visible in light mode -->
+                    <svg id="icon-moon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+
+        <div class="page-hero">
+            <h1>Developer Tools</h1>
+            <p class="page-desc">Tools and documentation for the P3 Dual NDS demake project.</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Tools</div>
+            <div class="card-list">
+
+                <a class="card" href="map-editor/map-editor.html">
+                    <div class="card-body">
+                        <div class="card-title">Map Editor</div>
+                        <div class="card-desc">
+                            Tile collision and trigger map editor. Paint mappings over a 3D model preview. Exports
+                            <code>.jmap</code> for the build pipeline.
+                        </div>
+                    </div>
+                    <span class="card-arrow">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                    </span>
+                </a>
+            </div>
+        </div>
+
+    </main>
+
+    <footer>
+        <div class="footer-inner">
+            <span>P3 Dual - NDS Demake</span>
+            <a href="https://github.com/TheBossT910/persona-3-dual" target="_blank" rel="noopener">GitHub</a>
+        </div>
+    </footer>
+
+    <script src="index.js"></script>
+</body>
+
+</html>

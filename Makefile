@@ -11,6 +11,15 @@ endif
 
 include $(DEVKITARM)/ds_rules
 
+# Default flags for release optimization
+OPT := -O3
+LTO_FLAG := -flto=auto
+
+ifeq ($(DEBUG), 1)
+    OPT := -O0 -g
+    LTO_FLAG :=
+endif
+
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
 # BUILD is the directory where object files & intermediate files will be placed
@@ -19,8 +28,8 @@ include $(DEVKITARM)/ds_rules
 #---------------------------------------------------------------------------------
 TARGET      :=  $(shell basename $(CURDIR))
 BUILD       :=  build
-SOURCES     :=  source source/views source/controllers source/core source/dialogue source/models source/environments source/components source/battleActions source/battleActions/enemies source/battleActions/party source/battleActions/skills 
-DATA        :=  
+SOURCES     :=  source source/views source/controllers source/core source/dialogue source/models source/environments source/components source/battleActions source/battleActions/enemies source/battleActions/party source/battleActions/skills
+DATA        :=
 INCLUDES    :=  include source
 
 # Add environment subdirectories directly to the GRAPHICS build pipeline
@@ -37,7 +46,11 @@ export GAME_ICON := $(CURDIR)/../icon.bmp
 # Python tool configuration
 #---------------------------------------------------------------------------------
 TOOLS_DIR       := $(CURDIR)/tools
-VENV_PYTHON     := $(HOME)/.venv/bin/python3
+ifeq ($(OS),Windows_NT)
+    VENV_PYTHON := $(HOME)/.venv/Scripts/python.exe
+else
+    VENV_PYTHON := $(HOME)/.venv/bin/python3
+endif
 
 ASSETS_DIALOGUE := $(CURDIR)/assets/dialogue
 ASSETS_MUSIC    := $(CURDIR)/assets/music
@@ -50,13 +63,23 @@ NITRO_MUSIC     := $(CURDIR)/nitrofiles/music
 NITRO_VIDEO     := $(CURDIR)/nitrofiles/video
 
 #---------------------------------------------------------------------------------
+# MMUTIL OS select
+#---------------------------------------------------------------------------------
+
+ifeq ($(OS),Windows_NT)
+    MMUTIL := $(DEVKITPRO)/tools/bin/mmutil.exe
+else
+    MMUTIL := $(DEVKITPRO)/tools/bin/mmutil
+endif
+
+export MMUTIL
+#---------------------------------------------------------------------------------
 # Collect source files
 #---------------------------------------------------------------------------------
 DLG_FILES       := $(wildcard $(ASSETS_DIALOGUE)/*.dlg)
 MP3_FILES       := $(wildcard $(ASSETS_MUSIC)/*.mp3)
 MP4_FILES       := $(wildcard $(ASSETS_VIDEO)/*.mp4)
 ENV_OBJ_FILES   := $(wildcard $(ASSETS_ENVIRONMENTS)/*/*.obj)
-MAP_FILES       := $(wildcard $(ASSETS_MAPS)/*.png)
 JMAP_FILES      := $(wildcard $(ASSETS_MAPS)/*.jmap)
 
 MODEL_JSON_FILES := $(wildcard $(ASSETS_MODELS)/*/*.json)
@@ -67,7 +90,6 @@ MODEL_JSON_FILES := $(wildcard $(ASSETS_MODELS)/*/*.json)
 DIALOGUE_OUT := $(DLG_FILES:$(ASSETS_DIALOGUE)/%.dlg=$(CURDIR)/source/dialogue/%_dialogue.cpp)
 MUSIC_OUT    := $(MP3_FILES:$(ASSETS_MUSIC)/%.mp3=$(NITRO_MUSIC)/%.pcm)
 VIDEO_OUT    := $(MP4_FILES:$(ASSETS_VIDEO)/%.mp4=$(NITRO_VIDEO)/%.vid)
-MAP_OUT      := $(MAP_FILES:$(ASSETS_MAPS)/%.png=$(CURDIR)/source/maps/%.h)
 JMAP_OUT     := $(JMAP_FILES:$(ASSETS_MAPS)/%.jmap=$(CURDIR)/source/maps/%.h)
 
 MODEL_OUT    := $(foreach file,$(MODEL_JSON_FILES),$(CURDIR)/source/models/$(notdir $(file:.json=.h)))
@@ -81,14 +103,12 @@ ENVIRONMENT_OUT := $(foreach file,$(ENV_OBJ_FILES),$(CURDIR)/source/environments
 #---------------------------------------------------------------------------------
 ARCH    :=  -march=armv5te -mtune=arm946e-s -mthumb
 
-CFLAGS  :=  -g -Wall -O3 -flto=auto -ffunction-sections -fdata-sections\
-        $(ARCH)
-
-CFLAGS  +=  $(INCLUDE) -DARM9
+CFLAGS  := $(OPT) $(ARCH) $(INCLUDE) -DARM9 -Wall $(LTO_FLAG) -ffunction-sections -fdata-sections
 CXXFLAGS    := $(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS :=  -g $(ARCH)
-LDFLAGS =   -specs=ds_arm9.specs -g $(ARCH) -flto=auto -Wl,--gc-sections -Wl,-Map,$(notdir $*.map)
+
+LDFLAGS =   -specs=ds_arm9.specs $(ARCH) $(LTO_FLAG) -Wl,--gc-sections -Wl,-Map,$(notdir $*.map)
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
@@ -146,7 +166,7 @@ export INCLUDE  :=  $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS :=  $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: $(BUILD) clean assets dialogue music video environments maps models help
+.PHONY: $(BUILD) clean assets dialogue music video environments jmaps models help
 
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -158,7 +178,7 @@ help:
 	@echo "  make              Build everything"
 	@echo "  make assets       Run all asset converters"
 
-assets: dirs dialogue music video environments maps jmaps models
+assets: dirs dialogue music video environments jmaps models
 
 dirs:
 	@mkdir -p $(CURDIR)/source/dialogue $(CURDIR)/source/maps $(CURDIR)/source/models $(CURDIR)/source/environments $(NITRO_MUSIC) $(NITRO_VIDEO) $(CURDIR)/nitrofiles/models $(CURDIR)/nitrofiles/environments
@@ -212,20 +232,10 @@ $(CURDIR)/source/models/%.h: $(ASSETS_MODELS)/%/$$*.json \
 models: $(MODEL_OUT)
 
 #---------------------------------------------------------------------------------
-# PNG collision maps — fed into texture2collision via build_asset.py (TODO)
-$(CURDIR)/source/maps/%.h: $(ASSETS_MAPS)/%.png $(wildcard $(ASSETS_MAPS)/%.build.json)
-	@echo "  MAP   $(notdir $<)"
-	@mkdir -p $(dir $@)
-	@$(VENV_PYTHON) $(TOOLS_DIR)/build_asset.py $< $@
-
-maps: $(MAP_OUT)
-
-#---------------------------------------------------------------------------------
-# JMAP collision maps — hand-authored tile files, converted by jmap_to_h.py
 $(CURDIR)/source/maps/%.h: $(ASSETS_MAPS)/%.jmap
 	@echo "  JMAP  $(notdir $<)"
 	@mkdir -p $(dir $@)
-	@$(VENV_PYTHON) $(TOOLS_DIR)/jmap_to_h.py $< $@
+	@$(VENV_PYTHON) $(TOOLS_DIR)/build_asset.py $< $@
 
 jmaps: $(JMAP_OUT)
 
@@ -233,7 +243,7 @@ jmaps: $(JMAP_OUT)
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds $(TARGET).ds.gba
-	@rm -f $(DIALOGUE_OUT) $(MUSIC_OUT) $(VIDEO_OUT) $(MAP_OUT) $(MODEL_OUT) $(CURDIR)/source/dialogue/*_dialogue.cpp $(CURDIR)/source/dialogue/*_dialogue.h
+	@rm -f $(MUSIC_OUT) $(VIDEO_OUT) $(JMAP_OUT) $(MODEL_OUT) $(DIALOGUE_OUT) $(CURDIR)/source/dialogue/*_dialogue.h
 	@rm -rf $(CURDIR)/source/environments/* $(CURDIR)/nitrofiles/models/* $(CURDIR)/nitrofiles/environments/*
 
 #---------------------------------------------------------------------------------

@@ -56,7 +56,7 @@ jobs:
             SUFFIX="a"
           else
             LAST_SUFFIX="${EXISTING#${PREFIX}}"
-            SUFFIX=$(python3 tools/next_suffix.py "$LAST_SUFFIX")
+            SUFFIX=$(python3 tools/github-workflows/next_suffix.py "$LAST_SUFFIX")
           fi
 
           TAG="${PREFIX}${SUFFIX}"

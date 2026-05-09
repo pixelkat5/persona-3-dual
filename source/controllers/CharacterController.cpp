@@ -3,7 +3,6 @@
 #include "core/globals.h"
 #include "math.h"
 #include "CharacterController.h"
-#include "geometry.h"
 
 // check collision
 TileType CharacterController::isTileAt(int tileX, int tileZ)

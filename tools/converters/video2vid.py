@@ -1,9 +1,4 @@
-import argparse
-import os
-import struct
-import subprocess
-import sys
-import tempfile
+import argparse, os, struct, subprocess, sys, tempfile
 
 def check_ffmpeg():
     try:
@@ -110,7 +105,7 @@ def convert(input_path, output_path, config):
 
         frames = interweave(raw_vid, pcm_aud, output_path, fps, w, h, bpp, pal_file)
 
-    print(f"Done! Created {output_path} ({frames} frames)")
+    print(f"Written: {output_path} / {frames} frames")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

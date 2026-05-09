@@ -2,40 +2,36 @@
     "configurations": [
         {
             "name": "NDS",
+            "compilerPath": "${env:DEVKITPRO}/devkitARM/bin/arm-none-eabi-g++",
+            "intelliSenseMode": "gcc-arm",
             "forcedInclude": [
                 "${workspaceFolder}/include/vscode_fix.h"
             ],
             "includePath": [
-                "${workspaceFolder}",
                 "${workspaceFolder}/include/**",
-                "${DEVKITPRO}/devkitARM/arm-none-eabi/include/**",
-                "${DEVKITPRO}/libnds/include/**",
-                "${DEVKITPRO}/calico/include",
+                "${workspaceFolder}/source/**",
                 "${workspaceFolder}/build",
-                "${workspaceFolder}/source",
-                "${workspaceFolder}/source"
+                "${env:DEVKITPRO}/libnds/include/**",
+                "${env:DEVKITPRO}/devkitARM/arm-none-eabi/include/**",
+                "${env:DEVKITPRO}/calico/include"
             ],
             "defines": [
-                "_DEBUG",
-                "_UNICODE",
-                "WIN32",
-                "ARM7",
+                "__NDS__",
                 "ARM9",
-                "__NDS__"
+                "ENVIRONMENT_BUILD",
+                "_DEBUG"
             ],
             "browse": {
                 "path": [
-                    "${workspaceFolder}",
-                    "${workspaceFolder}/include/**",
-                    "${DEVKITPRO}/libnds/include/**",
-                    "${DEVKITPRO}/devkitARM/arm-none-eabi/include/**"
+                    "${workspaceFolder}/source",
+                    "${workspaceFolder}/include",
+                    "${env:DEVKITPRO}/libnds/include",
+                    "${env:DEVKITPRO}/devkitARM/arm-none-eabi/include"
                 ],
-                "limitSymbolsToIncludedHeaders": true,
-                "databaseFilename": ""
+                "limitSymbolsToIncludedHeaders": true
             },
             "cStandard": "c11",
-            "cppStandard": "c++11",
-            "compilerPath": "${DEVKITPRO}/devkitARM/bin/arm-none-eabi-g++"
+            "cppStandard": "c++17"
         }
     ],
     "version": 4

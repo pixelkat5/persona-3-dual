@@ -1,10 +1,8 @@
-import sys, os, re, argparse
+import os, re, argparse
 from . import obj2environment
 
 def convert(input_file, output_dir, config):
     base_name = re.sub(r'[^a-zA-Z0-9_]', '_', os.path.splitext(os.path.basename(input_file))[0])
-
-    print(f"\n{'─'*60}\n  OBJ → NDS display list binary\n{'─'*60}")
 
     # obj2environment reads PNG sizes, optionally resizes them in-place (via Pillow)
     obj2environment.convert(input_file, output_dir, config)
@@ -25,7 +23,7 @@ def convert(input_file, output_dir, config):
             print(f"  [WARN] PNG not found: {png}")
             continue
         grit_file = os.path.splitext(png)[0] + '.grit'
-        print(f"  [GRIT] Writing {os.path.basename(grit_file)}")
+        print(f"  Generated {os.path.basename(grit_file)}")
         with open(grit_file, 'w') as f:
             f.write(grit_flags)
 

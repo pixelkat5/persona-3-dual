@@ -27,6 +27,7 @@ struct curPlayer : Player
     {
         myAttcking[0] = &agi;
         myAttcking[1] = &bufu;
+        attackCount = 2;
 
         name = "Makoto";
         hp = 720;
@@ -39,7 +40,6 @@ struct curPlayer : Player
         lu = 2;
         baseAttackAction = &slash_Attack;
         attackSkill = myAttcking;
-        // u32 attackCount = 2;
         // add resistances and arcana in the future
         // ...
     }

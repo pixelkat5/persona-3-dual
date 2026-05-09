@@ -56,10 +56,9 @@ nitrofiles/
 
 tools/
   dlg2dialogue.py
-  nds_build_environment.py
+  build_environment.py
   obj2environment.py
   obj2model.py
-  texture2collision.py
   video2vid.py
 ```
 
@@ -69,7 +68,7 @@ tools/
 
 ---
 
-### `nds_build_environment.py` — 3D Static Environment Pipeline
+### `build_environment.py` — 3D Static Environment Pipeline
 
 Converts an `.obj` + `.mtl` + `.png` collection into a zero-boilerplate C++ header, raw `.s` assembly display lists, and GRIT-compiled textures. 
 
@@ -113,46 +112,6 @@ enemy.json          →  uses MODEL_TEXSIZE default (32x32)
 ```bash
 make models MODEL_TEXSIZE='128 128'
 ```
-
----
-
-### `texture2collision.py` — Collision map converter
-
-Converts a 2D PNG into a `uint8_t collision_map[H][W]` C header. This is fully decoupled from 3D model bounds, allowing absolute physical scaling.
-
-| | |
-|---|---|
-| **Input** | `assets/maps/<name>[_X_Y_W_H].png` |
-| **Output** | `source/maps/<name>.h` |
-
-**Filename encoding — crop region**
-
-Encode the crop rectangle `(x, y, width, height)` as four underscore-separated integers **at the end** of the filename. Tile size physics are derived from the *full* image size.
-
-```text
-lobby.png              →  full image, no crop
-lobby_0_0_64_64.png    →  crop x=0, y=0, w=64, h=64
-tartarus_32_0_64_64.png→  crop x=32, y=0, w=64, h=64
-```
-
-**Make flag**
-
-```bash
-make maps MAP_FLAGS='...'   # any extra flags passed to texture2collision.py
-```
-
-**Tile values** (edit JSON palette or source code to map colors):
-
-| Value | Meaning |
-|---|---|
-| `0` | Walkable / Default |
-| `1` | Collision wall |
-| `2` | Save point |
-| `3` | Prev scene |
-| `4` | Next scene |
-| `100` | Character spawn |
-
----
 
 ### `dlg2dialogue.py` — Dialogue compiler
 

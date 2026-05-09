@@ -30,14 +30,38 @@ The name is a nod to the online joke about a DS version of Persona 3 called "Per
 
 ---
 
-## Quick Setup
+## Developer Setup
 
-> Detailed setup instructions coming soon.
+### 1. Install System Dependencies
 
-1. Install [devkitPro](https://devkitpro.org/wiki/Getting_Started) with the DS toolchain
-2. Clone the repo
-3. `make` to build
-4. Load the `.nds` output in [melonDS](https://melonds.kuribo64.net/)
+**Windows:**
+1. Install [devkitPro](https://devkitpro.org/wiki/Getting_Started) using the official graphical installer (ensure `nds-dev` is checked).
+2. Install Python 3 from the [official website](https://www.python.org/downloads/) (Check "Add Python to PATH" during install).
+3. Install FFmpeg: Open Command Prompt or PowerShell and run `winget install ffmpeg`.
+4. Install [melonDS](https://melonds.kuribo64.net/downloads.php) (and optionally add melonDS to Path for debugger setup)
+
+**macOS:**
+1. Install [devkitPro](https://devkitpro.org/wiki/Getting_Started) via the official pacman pkg.
+2. Install Python and FFmpeg using Homebrew:
+   `brew install python ffmpeg`
+3. Install [melonDS](https://melonds.kuribo64.net/downloads.php)
+
+**Linux (Ubuntu/Debian):**
+1. Install devkitPro by following the [Unix-like platforms guide](https://devkitpro.org/wiki/Getting_Started#Unix-like_platforms).
+2. Install Python and FFmpeg:
+   `sudo apt update && sudo apt install python3 python3-venv ffmpeg`
+3. Install [melonDS](https://melonds.kuribo64.net/downloads.php)
+
+### 2. Setup the Project
+Once the system tools are installed, open your terminal, clone the repo, navigate to the project folder, and set up the Python environment:
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r tools/requirements.txt
+```
+
+You can then build a .nds rom by running ```make clean && make``` in the project folder.
 
 ---
 
@@ -117,6 +141,6 @@ See the [Project Board](https://github.com/users/TheBossT910/projects/2) for cur
 
 ## Inspiration
 
-Based on the **Persona 3** series of games (OG, FES, Portable, Reload), and inspired by the **Persona 3 Dual** online joke. 
+Based on the **Persona 3** series of games (OG, FES, Portable, Reload), and inspired by the **Persona 3 Dual** online joke.
 
 *This is a fan project and is not affiliated with or endorsed by Atlus or Sega.*

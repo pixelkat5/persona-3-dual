@@ -19,7 +19,7 @@ class BattleController
 private:     
     u32 index = 0;               
     u32 counter = 0;
-    bool active = false;     
+    bool active = false;
     bool isEnemeyTurn = false;
     UpdateIndex updateIndex;              
 
