@@ -28,12 +28,12 @@ endif
 #---------------------------------------------------------------------------------
 TARGET      :=  $(shell basename $(CURDIR))
 BUILD       :=  build
-SOURCES     :=  source source/views source/controllers source/core source/dialogue source/models source/environments source/components source/battleActions source/battleActions/enemies source/battleActions/party source/battleActions/skills source/battleActions/actions
+SOURCES     :=  source source/views source/controllers source/core source/dialogue source/models source/environments source/components source/battleActions source/battleActions/enemies source/battleActions/party source/battleActions/skills
 DATA        :=
-INCLUDES    :=  include source
+INCLUDES    :=  include source assets/fonts/Rodin assets/fonts/Ultimate-Serial
 
 # Add environment subdirectories directly to the GRAPHICS build pipeline
-GRAPHICS    :=  assets/graphics $(wildcard assets/environments/*) $(wildcard assets/models/*)
+GRAPHICS    :=  assets/graphics $(wildcard assets/environments/*) $(wildcard assets/fonts/*)
 SFX       	:=  assets/sfx
 NITRODATA   :=  nitrofiles
 
@@ -58,6 +58,7 @@ ASSETS_VIDEO    := $(CURDIR)/assets/video
 ASSETS_ENVIRONMENTS := $(CURDIR)/assets/environments
 ASSETS_MODELS   := $(CURDIR)/assets/models
 ASSETS_MAPS     := $(CURDIR)/assets/maps
+ASSETS_FONTS    := $(CURDIR)/assets/fonts
 
 NITRO_MUSIC     := $(CURDIR)/nitrofiles/music
 NITRO_VIDEO     := $(CURDIR)/nitrofiles/video
@@ -145,6 +146,7 @@ CPPFILES    :=  $(sort $(CPPFILES))
 SFILES      :=  $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 BINFILES    :=  soundbank.bin
 PNGFILES    :=  $(foreach dir,$(GRAPHICS),$(notdir $(wildcard $(dir)/*.png)))
+PNGFILES    :=  $(filter-out %_preview.png,$(PNGFILES))
 
 export SFXFILES :=  $(foreach dir,$(notdir $(wildcard $(SFX)/*.*)),$(CURDIR)/$(SFX)/$(dir))
 
@@ -240,8 +242,26 @@ $(CURDIR)/source/maps/%.h: $(ASSETS_MAPS)/%.jmap
 jmaps: $(JMAP_OUT)
 
 #---------------------------------------------------------------------------------
+# Font sheet generation
+# Usage: make font  OR  make fonts
+#---------------------------------------------------------------------------------
+FONT_SCRIPT     := $(TOOLS_DIR)/gen_fontsheet.py
+FONT_DIRS       := $(wildcard $(ASSETS_FONTS)/*)
+
+.PHONY: font fonts
+font fonts:
+	@echo "Generating font sheets..."
+	@$(VENV_PYTHON) $(FONT_SCRIPT) --config $(ASSETS_FONTS)/fonts.json --base-dir $(CURDIR)
+	@echo "Running grit on font sheets..."
+	@mkdir -p $(CURDIR)/$(BUILD)
+	@grit $(ASSETS_FONTS)/Rodin/rodin_sheet.png -fts -o$(CURDIR)/$(BUILD)/rodin_sheet
+	@echo "  GRIT  rodin_sheet.png"
+	@grit $(ASSETS_FONTS)/Ultimate-Serial/ultimate_serial_sheet.png -fts -o$(CURDIR)/$(BUILD)/ultimate_serial_sheet
+	@echo "  GRIT  ultimate_serial_sheet.png"
+	@echo "Done."
+
+#---------------------------------------------------------------------------------
 clean:
-	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds $(TARGET).ds.gba
 	@rm -f $(MUSIC_OUT) $(VIDEO_OUT) $(JMAP_OUT) $(MODEL_OUT) $(DIALOGUE_OUT) $(CURDIR)/source/dialogue/*_dialogue.h
 	@rm -rf $(CURDIR)/source/environments/* $(CURDIR)/nitrofiles/models/* $(CURDIR)/nitrofiles/environments/*

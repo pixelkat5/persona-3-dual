@@ -1,0 +1,27 @@
+[
+  {
+    "font": "assets/fonts/Ultimate-Serial/Ultimate-Serial-Heavy Regular.ttf",
+    "size": 24,
+    "output": "assets/fonts/Ultimate-Serial/ultimate_serial_sheet.png",
+    "chars": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?.,:-/(). ",
+    "color": "#F5A623",
+    "bg": "#00000000",
+    "shadow": 1,
+    "shadow_color": "#000000",
+    "shadow_opacity": 200,
+    "engine": "nds",
+    "preview": true
+  },
+  {
+    "font": "assets/fonts/Rodin/FOT-Rodin Pro EB.otf",
+    "size": 16,
+    "output": "assets/fonts/Rodin/rodin_sheet.png",
+    "chars": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:-/(). ",
+    "color": "#FFFFFF",
+    "bg": "#00000000",
+    "outline": 1,
+    "outline_color": "#000000",
+    "engine": "nds",
+    "preview": true
+  }
+]

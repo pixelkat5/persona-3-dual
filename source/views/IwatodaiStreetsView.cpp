@@ -5,7 +5,7 @@
 #include "math.h"
 #include "IwatodaiStreetsView.h"
 
-// map
+// collision map
 #include "maps/iwatodai_streets.h"
 // environment
 #include "environments/iwatodai_streets.h"
@@ -38,9 +38,13 @@
 // model
 #include "models/character.h"
 #include "character.h"
+// components
+#include "components/PauseMenuComponent.h"
 
 int streetsCharacterTextureId;
 iwatodai_streets_Environment iwatodaiStreetsEnv;
+PauseMenuComponent streetsPauseMenu;
+bool isStreetsPauseMenuActive = false;
 
 void IwatodaiStreetsView::Init() {
     videoSetMode(MODE_0_3D);
@@ -55,21 +59,22 @@ void IwatodaiStreetsView::Init() {
     glInit();
     glEnable(GL_ANTIALIAS);
     glEnable(GL_TEXTURE_2D);
-
     glClearColor(0, 0, 0, 31);
     glClearPolyID(63);
     glClearDepth(0x7FFF);
-
     glViewport(0, 0, 255, 191);
-
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(55, 256.0 / 192.0, 0.1, 40);
 
+    glGenTextures(1, &streetsCharacterTextureId);
+    glBindTexture(GL_TEXTURE_2D, streetsCharacterTextureId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TEXTURE_SIZE_32, TEXTURE_SIZE_32, 0,
+        TEXGEN_TEXCOORD | GL_TEXTURE_WRAP_S | GL_TEXTURE_WRAP_T, characterBitmap);
+
     glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK);
     glColor3b(255, 255, 255);
 
-    // sub screen console
     bgSharedSlot = bgInitSub(0, BgType_Text8bpp, BgSize_T_256x256, 0, 1);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
     consoleInit(&console, 1, BgType_Text4bpp, BgSize_T_256x256, 4, 5, false, true);
@@ -85,46 +90,25 @@ void IwatodaiStreetsView::Init() {
         angle, characterTranslate, characterFacingAngle
     );
 
-    // setup music
     musicCtrl.init(IWATODAI_STREETS_MUSIC, 0.0f, -1.0f);
 
-    // setup character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
-    character_loadTextures(characterAnimationCtrl, bitmapsCharacter);
+    characterAnimationCtrl.set(MODEL_CHARACTER_WALK, true);
+    characterAnimationCtrl.play();
 
-    // setup environment model
     const unsigned int* bitmaps[IWATODAI_STREETS_TEX_COUNT] = {
-        f007_009_07Bitmap,
-        f007_009_16Bitmap,
-        f007_009_30Bitmap,
-        f007_009_25Bitmap,
-        f007_009_08Bitmap,
-        f007_009_05Bitmap,
-        f007_009_02Bitmap,
-        f007_009_04Bitmap,
-        f007_009_28Bitmap,
-        f007_009_24Bitmap,
-        f007_009_infloorBitmap,
-        f007_009_09Bitmap,
-        f007_009_11Bitmap,
-        f007_009_10Bitmap,
-        f007_009_13Bitmap,
-        f007_009_12Bitmap,
-        f007_009_17Bitmap,
-        f007_009_18Bitmap,
-        f007_009_32Bitmap,
-        f007_009_33Bitmap,
-        f007_009_29Bitmap,
-        f007_009_27Bitmap,
-        f007_009_22Bitmap,
-        f007_009_03Bitmap,
+        f007_009_07Bitmap, f007_009_16Bitmap, f007_009_30Bitmap, f007_009_25Bitmap,
+        f007_009_08Bitmap, f007_009_05Bitmap, f007_009_02Bitmap, f007_009_04Bitmap,
+        f007_009_28Bitmap, f007_009_24Bitmap, f007_009_infloorBitmap, f007_009_09Bitmap,
+        f007_009_11Bitmap, f007_009_10Bitmap, f007_009_13Bitmap, f007_009_12Bitmap,
+        f007_009_17Bitmap, f007_009_18Bitmap, f007_009_32Bitmap, f007_009_33Bitmap,
+        f007_009_29Bitmap, f007_009_27Bitmap, f007_009_22Bitmap, f007_009_03Bitmap,
         f007_009_wood01Bitmap,
     };
     iwatodaiStreetsEnv.load("nitro:/environments/iwatodai_streets.bin", bitmaps);
     totalPolyCount = iwatodaiStreetsEnv.getPolyCount();
 
-    // pause menu
-    pauseMenuCmpt.init(bgSharedSlot, &isPauseMenuActive);
+    streetsPauseMenu.init(bgSharedSlot, &isStreetsPauseMenuActive);
 }
 
 ViewState IwatodaiStreetsView::Update() {
@@ -133,15 +117,14 @@ ViewState IwatodaiStreetsView::Update() {
     bgUpdate();
 
     scanKeys();
-    u32 keys = keysHeld();
+    u32 keys    = keysHeld();
     u32 pressed = keysDown();
 
-    if (pressed & KEY_START) {
-        isPauseMenuActive = !isPauseMenuActive;
-    }
+    if (pressed & KEY_START)
+        isStreetsPauseMenuActive = !isStreetsPauseMenuActive;
 
-    if (isPauseMenuActive) {
-        ViewState menuResult = pauseMenuCmpt.update(pressed);
+    if (isStreetsPauseMenuActive) {
+        ViewState menuResult = streetsPauseMenu.update(pressed);
         if (menuResult != ViewState::KEEP_CURRENT) {
             musicCtrl.pause();
             return menuResult;
@@ -168,46 +151,31 @@ ViewState IwatodaiStreetsView::Update() {
             characterPosition charPos = playerCtrl->isCharacterAt();
             glTranslatef(charPos.x, 0.1, charPos.z);
             glRotatef(charPos.facingAngle, 0.0f, 1.0f, 0.0f);
+            glBindTexture(GL_TEXTURE_2D, streetsCharacterTextureId);
             characterAnimationCtrl.render();
         glPopMatrix(1);
 
         glFlush(0);
-
-        // print coordinates (64x64 area from 0,0 to 64,64)
-        if (enableDebugPrint) {
-            iprintf("\x1b[21;0Htile(x,z): %d, %d",
-                (int)((charPos.x + worldOffsetX) / tileSize),
-                (int)((charPos.z + worldOffsetZ) / tileSize));
-            iprintf("\x1b[22;0Htranslate(x,z): %d, %d",
-                (int)(charPos.x * 100),
-                (int)(charPos.z * 100));
-            iprintf("\x1b[23;0Hangle(w,c): %d, %d", (int)(charPos.angle * 100), (int)(charPos.facingAngle * 100));
-        }
     }
 
     musicCtrl.update();
     characterAnimationCtrl.update();
-
     return ViewState::KEEP_CURRENT;
 }
 
 void IwatodaiStreetsView::Cleanup() {
     setBrightness(3, 0);
     consoleClear();
-
-    pauseMenuCmpt.cancelSFX();
-    isPauseMenuActive = false;
-
+    streetsPauseMenu.cancelSFX();
+    isStreetsPauseMenuActive = false;
     iwatodaiStreetsEnv.cleanup();
     glDeleteTextures(1, &streetsCharacterTextureId);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
-
     vramSetBankA(VRAM_A_LCD);
     vramSetBankB(VRAM_B_LCD);
     vramSetBankC(VRAM_C_LCD);
     vramSetBankD(VRAM_D_LCD);
     vramSetBankH(VRAM_H_LCD);
-
     delete playerCtrl;
     playerCtrl = nullptr;
 }
