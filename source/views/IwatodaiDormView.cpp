@@ -22,7 +22,7 @@
 int characterTextureId;
 iwatodai_dorm_Environment iwatodaiDormEnv;
 PauseMenuComponent pauseMenu;
-bool isPauseMenuActive = false;
+
 
 // TODO: dont forget to clear in future
 IwatodaiDormView::IwatodaiDormView() : enemies(new std::vector<Enemy *>({&merciless_Maya, &cowardly_Maya})),

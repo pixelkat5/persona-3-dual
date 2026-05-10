@@ -263,3 +263,14 @@ ViewState PauseMenuComponent::personaOptionSelected() { return ViewState::KEEP_C
 ViewState PauseMenuComponent::statsOptionSelected()   { return ViewState::KEEP_CURRENT; }
 ViewState PauseMenuComponent::sLinkOptionSelected()   { return ViewState::KEEP_CURRENT; }
 ViewState PauseMenuComponent::systemOptionSelected()  { return ViewState::KEEP_CURRENT; }
+
+ViewState PauseMenuComponent::openCharacterAnimMenu() {
+    selectedOption = 0;
+    options = characterAnimOptions;
+    optionCount = CHARACTER_ANIM_OPTIONS;
+    return ViewState::KEEP_CURRENT;
+}
+
+ViewState PauseMenuComponent::characterAnimOptionSelected() {
+    return ViewState::KEEP_CURRENT;
+}
