@@ -94,7 +94,7 @@ void IwatodaiDormView::Init()
 
     // setup character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
-    characterAnimationCtrl.set(MODEL_CHARACTER_WALK, true);
+    characterAnimationCtrl.set(MODEL_CHARACTER_9, true);
     characterAnimationCtrl.play();
 
     // setup environment model

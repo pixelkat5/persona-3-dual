@@ -95,7 +95,7 @@ void IwatodaiStreetsView::Init() {
     musicCtrl.init(IWATODAI_STREETS_MUSIC, 0.0f, -1.0f);
 
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
-    characterAnimationCtrl.set(MODEL_CHARACTER_WALK, true);
+    characterAnimationCtrl.set(MODEL_CHARACTER_9, true);
     characterAnimationCtrl.play();
 
     const unsigned int* bitmaps[IWATODAI_STREETS_TEX_COUNT] = {
