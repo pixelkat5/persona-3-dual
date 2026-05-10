@@ -26,7 +26,7 @@ endif
 # SOURCES is a list of directories containing source code
 # INCLUDES is a list of directories containing extra header files
 #---------------------------------------------------------------------------------
-TARGET      :=  $(shell basename $(CURDIR))
+TARGET      :=  persona-3-dual
 BUILD       :=  build
 SOURCES     :=  source source/views source/controllers source/core source/dialogue source/models source/environments source/components source/battleActions source/battleActions/enemies source/battleActions/party source/battleActions/skills source/battleActions/actions
 DATA        :=
