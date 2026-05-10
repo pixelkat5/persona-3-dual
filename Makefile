@@ -33,7 +33,7 @@ DATA        :=
 INCLUDES    :=  include source assets/fonts/Rodin assets/fonts/Ultimate-Serial
 
 # Add environment subdirectories directly to the GRAPHICS build pipeline
-GRAPHICS    :=  assets/graphics $(wildcard assets/environments/*) $(wildcard assets/fonts/*)
+GRAPHICS    :=  assets/graphics $(wildcard assets/environments/*) $(wildcard assets/fonts/*) $(wildcard assets/models/*)
 SFX       	:=  assets/sfx
 NITRODATA   :=  nitrofiles
 
