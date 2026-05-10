@@ -14,10 +14,6 @@
 
 DialogueController dialogueCtrl;
 
-// add background setup here, and assign the bgLoader index to the appropriate PauseOption in PauseMenuComponent.h
-// NOTE: we can easily pass in custom bgLoaders. The reason I'm not implementing this behaviour is because I don't 
-// think they need to be different across interactions. The PauseMenuComponent should remain the same between
-// different views
 void PauseMenuComponent::setBgLoaders()
 {
     bgLoaders[0] = [](int slot)
@@ -73,35 +69,28 @@ void PauseMenuComponent::cancelSFX()
 
 void PauseMenuComponent::init(int iBgSlot, bool* isActive)
 {
-    // point to music
     musicCtrl.loadSFX(SFX_MENU);
     musicCtrl.loadSFX(SFX_SELECT);
     musicCtrl.loadSFX(SFX_CANCEL);
 
-    // set default options
     options = menuOptions;
     optionCount = MENU_OPTIONS;
     selectedOption = 0;
 
-    // set bg loaders
     bgSlot = iBgSlot;
     setBgLoaders();
 
     isActivePtr = isActive;
-    
-    // initialize view state
     nextViewState = ViewState::KEEP_CURRENT;
 }
 
 ViewState PauseMenuComponent::update(int keys)
 {
-    // added for debug testing of dialogue
     if (dialogueCtrl.isActive()) {
         dialogueCtrl.update(keys);
         return ViewState::KEEP_CURRENT;
     }
 
-    // navigate options
     if (keys & KEY_DOWN)
     {
         sfxMenuHandle = musicCtrl.playSFX(SFX_MENU, 255, 128);
@@ -125,10 +114,9 @@ ViewState PauseMenuComponent::update(int keys)
             if (result != ViewState::KEEP_CURRENT) {
                 nextViewState = result;
                 *isActivePtr = false;
-            } else if (dialogueCtrl.isActive()) {   // added for debug testing of dialogue
-                 return ViewState::KEEP_CURRENT;
+            } else if (dialogueCtrl.isActive()) {
+                return ViewState::KEEP_CURRENT;
             }
-            // if we changed options, push current state to stack
             if (options != currentState.options)
             {
                 prevOptions.push(currentState);
@@ -142,41 +130,25 @@ ViewState PauseMenuComponent::update(int keys)
         musicCtrl.playSFX(SFX_CANCEL, 255, 128);
         selectedOption = 0;
 
-        // if we're in a submenu, return to main menu
         if (!prevOptions.empty())
         {
             PauseState prevState = prevOptions.top();
             prevOptions.pop();
-
             options = prevState.options;
             optionCount = prevState.optionCount;
             selectedOption = prevState.selectedOption;
         } else {
-            // otherwise, close the menu
             *isActivePtr = false;
         }
     }
 
     consoleClear();
-    printf("\x1b[0;0H");
-
-    // blink the "Pause" text
-    if (frame % 60 < 30)
-    {
-        iprintf("Pause\n");
-    }
-    else
-    {
-        iprintf("\n");
-    }
-
-    // display options
+    iprintf("\x1b[0;0H");
     for (int option = 0; option < optionCount; option++)
     {
         iprintf("%c %s\n", option == selectedOption ? '>' : ' ', options[option].name);
     }
 
-    // load selectedOption's background
     int bgIndex = options[selectedOption].bgIndex;
     if (bgIndex != -1)
     {
@@ -194,97 +166,58 @@ ViewState PauseMenuComponent::update(int keys)
 }
 
 // OPTION HANDLERS
-// menuOption handlers
 ViewState PauseMenuComponent::openDebugMenu()
 {
-    selectedOption = 0;
-    options = debugOptions;
-    optionCount = DEBUG_OPTIONS;
+    selectedOption = 0; options = debugOptions; optionCount = DEBUG_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openSkillMenu()
 {
-    selectedOption = 0;
-    options = skillOptions;
-    optionCount = SKILL_OPTIONS;
+    selectedOption = 0; options = skillOptions; optionCount = SKILL_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openItemMenu()
 {
-    selectedOption = 0;
-    options = itemOptions;
-    optionCount = ITEM_OPTIONS;
+    selectedOption = 0; options = itemOptions; optionCount = ITEM_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openPersonaMenu()
 {
-    selectedOption = 0;
-    options = personaOptions;
-    optionCount = PERSONA_OPTIONS;
+    selectedOption = 0; options = personaOptions; optionCount = PERSONA_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openEquipMenu()
 {
-    selectedOption = 0;
-    options = equipOptions;
-    optionCount = EQUIP_OPTIONS;
+    selectedOption = 0; options = equipOptions; optionCount = EQUIP_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openStatusMenu()
 {
-    selectedOption = 0;
-    options = statsOptions;
-    optionCount = STATS_OPTIONS;
+    selectedOption = 0; options = statsOptions; optionCount = STATS_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openSLinkMenu()
 {
-    selectedOption = 0;
-    options = sLinkOptions;
-    optionCount = S_LINK_OPTIONS;
+    selectedOption = 0; options = sLinkOptions; optionCount = S_LINK_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
-
 ViewState PauseMenuComponent::openSystemMenu()
 {
-    selectedOption = 0;
-    options = systemOptions;
-    optionCount = SYSTEM_OPTIONS;
+    selectedOption = 0; options = systemOptions; optionCount = SYSTEM_OPTIONS;
     return ViewState::KEEP_CURRENT;
 }
 
-// generic handlers
-// this is where we would implement functionality for going into a sub-menu, or selecting a skill, item, etc.
 ViewState PauseMenuComponent::debugOptionSelected()
 {
-    // set the next view state based on the selected debug option
     ViewState selectedView;
     switch (selectedOption)
     {
-        case DISCLAIMER_VIEW:
-            selectedView = ViewState::DISCLAIMER;
-            break;
-        case INTRO_VIDEO_VIEW:
-            selectedView = ViewState::INTRO_VIDEO;
-            break;
-        case INTRO_VIEW:
-            selectedView = ViewState::INTRO;
-            break;
-        case MAIN_MENU_VIEW:
-            selectedView = ViewState::MAIN_MENU;
-            break;
-        case IWATODAI_DORM_VIEW:
-            selectedView = ViewState::IWATODAI_DORM;
-            break;
-        case IWATODAI_STREETS_VIEW:
-            selectedView = ViewState::IWATODAI_STREETS;
-            break;
+        case DISCLAIMER_VIEW:      selectedView = ViewState::DISCLAIMER;        break;
+        case INTRO_VIDEO_VIEW:     selectedView = ViewState::INTRO_VIDEO;       break;
+        case INTRO_VIEW:           selectedView = ViewState::INTRO;             break;
+        case MAIN_MENU_VIEW:       selectedView = ViewState::MAIN_MENU;         break;
+        case IWATODAI_DORM_VIEW:   selectedView = ViewState::IWATODAI_DORM;     break;
+        case IWATODAI_STREETS_VIEW:selectedView = ViewState::IWATODAI_STREETS;  break;
         case DEBUG_DIALOGUE:
             consoleClear();
             demo_yuki_guard_argument_load();
@@ -297,52 +230,19 @@ ViewState PauseMenuComponent::debugOptionSelected()
             *isActivePtr = false;
             selectedView = ViewState::KEEP_CURRENT;
             break;
-        default:
-            selectedView = ViewState::KEEP_CURRENT;
+        default: selectedView = ViewState::KEEP_CURRENT;
     }
     return selectedView;
 }
 
 ViewState PauseMenuComponent::skillOptionSelected()
 {
-    selectedOption = 0;
-    options = skills;
-    optionCount = SKILLS;
+    selectedOption = 0; options = skills; optionCount = SKILLS;
     return ViewState::KEEP_CURRENT;
 }
-
-ViewState PauseMenuComponent::itemOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
-
-ViewState PauseMenuComponent::equipOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
-
-ViewState PauseMenuComponent::personaOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
-
-ViewState PauseMenuComponent::statsOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
-
-ViewState PauseMenuComponent::sLinkOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
-
-ViewState PauseMenuComponent::systemOptionSelected()
-{
-    // ...
-    return ViewState::KEEP_CURRENT;
-}
+ViewState PauseMenuComponent::itemOptionSelected()    { return ViewState::KEEP_CURRENT; }
+ViewState PauseMenuComponent::equipOptionSelected()   { return ViewState::KEEP_CURRENT; }
+ViewState PauseMenuComponent::personaOptionSelected() { return ViewState::KEEP_CURRENT; }
+ViewState PauseMenuComponent::statsOptionSelected()   { return ViewState::KEEP_CURRENT; }
+ViewState PauseMenuComponent::sLinkOptionSelected()   { return ViewState::KEEP_CURRENT; }
+ViewState PauseMenuComponent::systemOptionSelected()  { return ViewState::KEEP_CURRENT; }

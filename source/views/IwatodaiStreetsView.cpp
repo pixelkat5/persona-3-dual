@@ -53,39 +53,28 @@ void IwatodaiStreetsView::Init() {
     vramSetBankA(VRAM_A_TEXTURE);
     vramSetBankB(VRAM_B_TEXTURE);
     vramSetBankC(VRAM_C_SUB_BG);
-    vramSetBankD(VRAM_D_TEXTURE); 
+    vramSetBankD(VRAM_D_TEXTURE);
     bgExtPaletteEnableSub();
 
     glInit();
     glEnable(GL_ANTIALIAS);
     glEnable(GL_TEXTURE_2D);
-
     glClearColor(0, 0, 0, 31);
     glClearPolyID(63);
     glClearDepth(0x7FFF);
-
     glViewport(0, 0, 255, 191);
-
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(55, 256.0 / 192.0, 0.1, 40);
 
-    // character texture
     glGenTextures(1, &streetsCharacterTextureId);
     glBindTexture(GL_TEXTURE_2D, streetsCharacterTextureId);
-    glTexImage2D(
-        GL_TEXTURE_2D, 0,
-        GL_RGBA,
-        TEXTURE_SIZE_32, TEXTURE_SIZE_32,
-        0,
-        TEXGEN_TEXCOORD | GL_TEXTURE_WRAP_S | GL_TEXTURE_WRAP_T,
-        characterBitmap
-    );
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TEXTURE_SIZE_32, TEXTURE_SIZE_32, 0,
+        TEXGEN_TEXCOORD | GL_TEXTURE_WRAP_S | GL_TEXTURE_WRAP_T, characterBitmap);
 
     glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK);
     glColor3b(255, 255, 255);
 
-    // sub screen console
     bgSharedSlot = bgInitSub(0, BgType_Text8bpp, BgSize_T_256x256, 0, 1);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
     consoleInit(&console, 1, BgType_Text4bpp, BgSize_T_256x256, 4, 5, false, true);
@@ -101,46 +90,24 @@ void IwatodaiStreetsView::Init() {
         angle, characterTranslate, characterFacingAngle
     );
 
-    // music
     musicCtrl.init(IWATODAI_STREETS_MUSIC, 0.0f, -1.0f);
 
-    // character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
     characterAnimationCtrl.set(MODEL_CHARACTER_WALK, true);
     characterAnimationCtrl.play();
 
-    // environment - pass all 25 textures in slot order
     const unsigned int* bitmaps[IWATODAI_STREETS_TEX_COUNT] = {
-        f007_009_07Bitmap,
-        f007_009_16Bitmap,
-        f007_009_30Bitmap,
-        f007_009_25Bitmap,
-        f007_009_08Bitmap,
-        f007_009_05Bitmap,
-        f007_009_02Bitmap,
-        f007_009_04Bitmap,
-        f007_009_28Bitmap,
-        f007_009_24Bitmap,
-        f007_009_infloorBitmap,
-        f007_009_09Bitmap,
-        f007_009_11Bitmap,
-        f007_009_10Bitmap,
-        f007_009_13Bitmap,
-        f007_009_12Bitmap,
-        f007_009_17Bitmap,
-        f007_009_18Bitmap,
-        f007_009_32Bitmap,
-        f007_009_33Bitmap,
-        f007_009_29Bitmap,
-        f007_009_27Bitmap,
-        f007_009_22Bitmap,
-        f007_009_03Bitmap,
+        f007_009_07Bitmap, f007_009_16Bitmap, f007_009_30Bitmap, f007_009_25Bitmap,
+        f007_009_08Bitmap, f007_009_05Bitmap, f007_009_02Bitmap, f007_009_04Bitmap,
+        f007_009_28Bitmap, f007_009_24Bitmap, f007_009_infloorBitmap, f007_009_09Bitmap,
+        f007_009_11Bitmap, f007_009_10Bitmap, f007_009_13Bitmap, f007_009_12Bitmap,
+        f007_009_17Bitmap, f007_009_18Bitmap, f007_009_32Bitmap, f007_009_33Bitmap,
+        f007_009_29Bitmap, f007_009_27Bitmap, f007_009_22Bitmap, f007_009_03Bitmap,
         f007_009_wood01Bitmap,
     };
     iwatodaiStreetsEnv.load("nitro:/environments/iwatodai_streets.bin", bitmaps);
     totalPolyCount = iwatodaiStreetsEnv.getPolyCount();
 
-    // pause menu
     streetsPauseMenu.init(bgSharedSlot, &isStreetsPauseMenuActive);
 }
 
@@ -150,12 +117,11 @@ ViewState IwatodaiStreetsView::Update() {
     bgUpdate();
 
     scanKeys();
-    u32 keys = keysHeld();
+    u32 keys    = keysHeld();
     u32 pressed = keysDown();
 
-    if (pressed & KEY_START) {
+    if (pressed & KEY_START)
         isStreetsPauseMenuActive = !isStreetsPauseMenuActive;
-    }
 
     if (isStreetsPauseMenuActive) {
         ViewState menuResult = streetsPauseMenu.update(pressed);
@@ -194,27 +160,22 @@ ViewState IwatodaiStreetsView::Update() {
 
     musicCtrl.update();
     characterAnimationCtrl.update();
-
     return ViewState::KEEP_CURRENT;
 }
 
 void IwatodaiStreetsView::Cleanup() {
     setBrightness(3, 0);
     consoleClear();
-
     streetsPauseMenu.cancelSFX();
     isStreetsPauseMenuActive = false;
-
     iwatodaiStreetsEnv.cleanup();
     glDeleteTextures(1, &streetsCharacterTextureId);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
-
     vramSetBankA(VRAM_A_LCD);
     vramSetBankB(VRAM_B_LCD);
     vramSetBankC(VRAM_C_LCD);
     vramSetBankD(VRAM_D_LCD);
     vramSetBankH(VRAM_H_LCD);
-
     delete playerCtrl;
     playerCtrl = nullptr;
 }
