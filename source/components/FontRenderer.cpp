@@ -19,8 +19,8 @@ void FontRenderer::init(
     // Load font tiles into the GFX region of the provided bgSlot
     dmaCopy(fontTiles, bgGetGfxPtr(bgSlot), fontTilesLen);
 
-    // Load palette into sub BG palette (extended palette slot 2 to avoid conflict)
-    dmaCopy(fontPal, BG_PALETTE_SUB + (16 * 2), fontPalLen);
+    // 4bpp: copy palette to sub BG palette slot 2 (16 colours at offset 2*16)
+    dmaCopy(fontPal, BG_PALETTE_SUB + (16 * 2), fontPalLen > 32 ? 32 : fontPalLen);
 
     clear();
 }
@@ -37,7 +37,8 @@ void FontRenderer::placeTiles(int tileX, int tileY, int startTile) {
             int mapX = tileX + col;
             int mapY = tileY + row;
             if (mapX >= FONT_SCREEN_COLS || mapY >= FONT_SCREEN_ROWS) continue;
-            map[mapY * FONT_SCREEN_COLS + mapX] = (u16)(startTile + row * sheetCols + col);
+            // tile entry: bits 0-9 = tile index, bits 12-15 = palette slot (2)
+            map[mapY * FONT_SCREEN_COLS + mapX] = (u16)((2 << 12) | (startTile + row * sheetCols + col));
         }
     }
 }
@@ -45,9 +46,11 @@ void FontRenderer::placeTiles(int tileX, int tileY, int startTile) {
 void FontRenderer::drawChar(int tileX, int tileY, char c) {
     int code = (int)(unsigned char)c - charBase;
     if (code < 0 || code >= charCount) return;
-    int sheetIndex = charMap[code];
-    int cellRow    = sheetIndex / sheetCols;
-    int cellCol    = sheetIndex % sheetCols;
+    int cellIndex  = charMap[code];              // which cell in the character grid
+    int gridCols   = sheetCols / cellTilesW;     // number of character columns in the sheet
+    int cellRow    = cellIndex / gridCols;
+    int cellCol    = cellIndex % gridCols;
+    // top-left tile of this cell in the flat tile array
     int startTile  = (cellRow * cellTilesH) * sheetCols + cellCol * cellTilesW;
     placeTiles(tileX, tileY, startTile);
 }

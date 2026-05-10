@@ -1,6 +1,7 @@
 #pragma once
 #include <calico/types.h>
 #include <stack>
+#include "FontRenderer.h"
 
 #define MENU_OPTIONS 8
 #define SKILL_OPTIONS 9
@@ -132,6 +133,8 @@ class PauseMenuComponent {
 
         // backgrounds
         int bgSlot = 0;
+        int fontBgSlot = 0;
+        FontRenderer font;
         void (*bgLoaders[4])(int) = {
             nullptr,
             nullptr,
@@ -301,7 +304,7 @@ class PauseMenuComponent {
         ViewState openCharacterAnimMenu();
 
     public:
-        void init(int iBgSlot, bool* isActive);
+        void init(int iBgSlot, int iFontBgSlot, bool* isActive);
         ViewState update(int keys);
         void cancelSFX();
 };

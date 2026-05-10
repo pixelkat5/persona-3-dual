@@ -9,6 +9,9 @@
 #include "bgGuard.h"
 #include "bgAkihiko.h"
 #include "bgYuki.h"
+// fonts
+#include "rodin_sheet.h"
+#include "rodin_sheet_map.h"
 // dialogue
 #include "dialogue/demo_dialogue.h"
 
@@ -67,7 +70,7 @@ void PauseMenuComponent::cancelSFX()
     musicCtrl.stopSFX(sfxCancelHandle);
 }
 
-void PauseMenuComponent::init(int iBgSlot, bool* isActive)
+void PauseMenuComponent::init(int iBgSlot, int iFontBgSlot, bool* isActive)
 {
     musicCtrl.loadSFX(SFX_MENU);
     musicCtrl.loadSFX(SFX_SELECT);
@@ -78,10 +81,22 @@ void PauseMenuComponent::init(int iBgSlot, bool* isActive)
     selectedOption = 0;
 
     bgSlot = iBgSlot;
+    fontBgSlot = iFontBgSlot;
     setBgLoaders();
 
     isActivePtr = isActive;
     nextViewState = ViewState::KEEP_CURRENT;
+
+    font.init(
+        fontBgSlot,
+        rodin_sheetTiles,   rodin_sheetTilesLen,
+        rodin_sheetPal,     rodin_sheetPalLen,
+        rodin_sheet_CHAR_MAP, RODIN_SHEET_CHAR_COUNT,
+        32,
+        RODIN_SHEET_CELL_W / 8,   // cellTilesW = 3
+        RODIN_SHEET_CELL_H / 8,   // cellTilesH = 3
+        (384 / 8)                 // sheetCols in tiles = 48
+    );
 }
 
 ViewState PauseMenuComponent::update(int keys)
@@ -142,11 +157,13 @@ ViewState PauseMenuComponent::update(int keys)
         }
     }
 
-    consoleClear();
-    iprintf("\x1b[0;0H");
+    bgShow(fontBgSlot);
+    font.clear();
     for (int option = 0; option < optionCount; option++)
     {
-        iprintf("%c %s\n", option == selectedOption ? '>' : ' ', options[option].name);
+        int tileY = option * (RODIN_SHEET_CELL_H / 8);
+        font.draw(0, tileY, option == selectedOption ? "> " : "  ");
+        font.draw(2, tileY, options[option].name);
     }
 
     int bgIndex = options[selectedOption].bgIndex;

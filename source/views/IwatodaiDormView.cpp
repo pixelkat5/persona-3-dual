@@ -7,6 +7,7 @@
 
 // model
 #include "models/character.h"
+#include "character.h"
 // environment
 #include "environments/iwatodai_dorm.h"
 #include "texture.h"
@@ -15,9 +16,13 @@
 // dialogue
 #include "dialogue/demo_dialogue.h"
 
+#include "components/PauseMenuComponent.h"
+
 // TODO: move to header
 int characterTextureId;
 iwatodai_dorm_Environment iwatodaiDormEnv;
+PauseMenuComponent pauseMenu;
+bool isPauseMenuActive = false;
 
 // TODO: dont forget to clear in future
 IwatodaiDormView::IwatodaiDormView() : enemies(new std::vector<Enemy *>({&merciless_Maya, &cowardly_Maya})),
@@ -50,13 +55,27 @@ void IwatodaiDormView::Init()
     // zNear is how close the camera can see, zFar is the maximum draw distance
     gluPerspective(55, 256.0 / 192.0, 0.1, 40);
 
+    // character
+    glGenTextures(1, &characterTextureId);
+    glBindTexture(GL_TEXTURE_2D, characterTextureId);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0,
+        GL_RGBA,
+        TEXTURE_SIZE_32, TEXTURE_SIZE_32,
+        0,
+        TEXGEN_TEXCOORD | GL_TEXTURE_WRAP_S | GL_TEXTURE_WRAP_T,
+        characterBitmap // from character.h
+    );
+
     glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK);
     glColor3b(255, 255, 255); // keep white so texture colors aren't tinted
 
     // setup shared bg slot on sub screen
     bgSharedSlot = bgInitSub(0, BgType_Text8bpp, BgSize_T_256x256, 0, 1);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
-
+    bgFontSlot = bgInitSub(2, BgType_Text4bpp, BgSize_T_256x256, 3, 6);
+    bgHide(bgFontSlot);
+    
     // setup console
     consoleInit(&console, 1, BgType_Text4bpp, BgSize_T_256x256, 4, 5, false, true);
     consoleSelect(&console);
@@ -75,11 +94,12 @@ void IwatodaiDormView::Init()
 
     // setup character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
-    character_loadTextures(characterAnimationCtrl, bitmapsCharacter);
+    characterAnimationCtrl.set(MODEL_CHARACTER_WALK, true);
+    characterAnimationCtrl.play();
 
     // setup environment model
-    const unsigned int* bitmapsEnv[IWATODAI_DORM_TEX_COUNT] = { textureBitmap };
-    iwatodaiDormEnv.load("nitro:/environments/iwatodai_dorm.bin", bitmapsEnv);
+    const unsigned int* bitmaps[IWATODAI_DORM_TEX_COUNT] = { textureBitmap };
+    iwatodaiDormEnv.load("nitro:/environments/iwatodai_dorm.bin", bitmaps);
     totalPolyCount = iwatodaiDormEnv.getPolyCount();
 
     // setup dialogue
@@ -87,7 +107,7 @@ void IwatodaiDormView::Init()
 
     // setup pause menu
     // use the same shared background slot as the demo dialogue
-    pauseMenuCmpt.init(bgSharedSlot, &isPauseMenuActive);
+    pauseMenu.init(bgSharedSlot, bgFontSlot, &isPauseMenuActive);
 }
 
 ViewState IwatodaiDormView::Update()
@@ -103,9 +123,9 @@ ViewState IwatodaiDormView::Update()
     if (pressed & KEY_START) {
         isPauseMenuActive = !isPauseMenuActive;
     }
-
+    
     if (isPauseMenuActive) {
-        ViewState menuResult = pauseMenuCmpt.update(pressed);
+        ViewState menuResult = pauseMenu.update(pressed);
         if (menuResult != ViewState::KEEP_CURRENT) {
             musicCtrl.pause();
             return menuResult;
@@ -115,7 +135,7 @@ ViewState IwatodaiDormView::Update()
         if (!dialogueCtrl.isActive() && !battleController.isActive()) {
             // move character
             camPos = playerCtrl->update(keys);
-
+          
             // start battle
             if (keys & KEY_Y)
             {
@@ -155,34 +175,23 @@ ViewState IwatodaiDormView::Update()
         glPopMatrix(1);
 
         // draw character
-        glPushMatrix();
+        glPushMatrix();        
             // move character
             characterPosition charPos = playerCtrl->isCharacterAt();
             glTranslatef(charPos.x, 0.1, charPos.z);
             glRotatef(charPos.facingAngle, 0.0f, 1.0f, 0.0f);
-
+            
             // draw character
+            glBindTexture(GL_TEXTURE_2D, characterTextureId);
             characterAnimationCtrl.render();
         glPopMatrix(1);
 
         glFlush(0);
-
-        // print coordinates (64x64 area from 0,0 to 64,64)
-        if (enableDebugPrint) {
-            iprintf("\x1b[21;0Htile(x,z): %d, %d",
-                (int)((charPos.x + worldOffsetX) / tileSize),
-                (int)((charPos.z + worldOffsetZ) / tileSize));
-            iprintf("\x1b[22;0Htranslate(x,z): %d, %d",
-                (int)(charPos.x * 100),
-                (int)(charPos.z * 100));
-            iprintf("\x1b[23;0Hangle(w,c): %d, %d", (int)(charPos.angle * 100), (int)(charPos.facingAngle * 100));
-        }
     }
 
     // update controllers
     battleController.update(pressed);
     dialogueCtrl.update(keys);
-    characterAnimationCtrl.update();
     musicCtrl.update();
 
     return ViewState::KEEP_CURRENT;
@@ -195,7 +204,7 @@ void IwatodaiDormView::Cleanup()
     consoleClear();
 
     // stop pause menu sfx
-    pauseMenuCmpt.cancelSFX();
+    pauseMenu.cancelSFX();
     isPauseMenuActive = false;
 
     // cleanup environment

@@ -77,6 +77,8 @@ void IwatodaiStreetsView::Init() {
 
     bgSharedSlot = bgInitSub(0, BgType_Text8bpp, BgSize_T_256x256, 0, 1);
     dmaFillHalfWords(0, bgGetMapPtr(bgSharedSlot), 2048);
+    bgFontSlot = bgInitSub(2, BgType_Text4bpp, BgSize_T_256x256, 3, 6);
+    bgHide(bgFontSlot);
     consoleInit(&console, 1, BgType_Text4bpp, BgSize_T_256x256, 4, 5, false, true);
     consoleSelect(&console);
     bgSetPriority(console.bgId, 0);
@@ -108,7 +110,7 @@ void IwatodaiStreetsView::Init() {
     iwatodaiStreetsEnv.load("nitro:/environments/iwatodai_streets.bin", bitmaps);
     totalPolyCount = iwatodaiStreetsEnv.getPolyCount();
 
-    streetsPauseMenu.init(bgSharedSlot, &isStreetsPauseMenuActive);
+    streetsPauseMenu.init(bgSharedSlot, bgFontSlot, &isStreetsPauseMenuActive);
 }
 
 ViewState IwatodaiStreetsView::Update() {
