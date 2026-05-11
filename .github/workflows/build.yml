@@ -331,12 +331,12 @@ jobs:
           # Detect forks: REPO is the repo the workflow is running in;
           # BASE_REPO is the repo the event targets (always the upstream repo).
           # They differ when a fork triggers the workflow.
+          FORK_FIELD='[]'
+          FORK_LABEL=""
           if [ "$REPO" != "$BASE_REPO" ]; then
-            IS_FORK="true"
             FORK_LABEL=" [fork: ${REPO}]"
-          else
-            IS_FORK="false"
-            FORK_LABEL=""
+            FORK_FIELD=$(jq -n --arg repo "$REPO" \
+              '[{ name: "Fork", value: $repo, inline: false }]')
           fi
 
           if [ "$IS_PR" = "true" ]; then
@@ -347,15 +347,6 @@ jobs:
             TITLE="${EMOJI} Build ${JOB_STATUS}: ${VERSION_TAG}${FORK_LABEL}"
             URL="${SERVER_URL}/${REPO}/releases/tag/${VERSION_TAG}"
             BUILD_TYPE="Release ${VERSION_TAG}"
-          fi
-
-          # Build the optional fork field and splice it in only when needed.
-          # jq --argjson lets us pass a pre-built JSON array fragment safely.
-          if [ "$IS_FORK" = "true" ]; then
-            FORK_FIELD=$(jq -n --arg repo "$REPO" \
-              '[{ name: "Fork", value: $repo, inline: false }]')
-          else
-            FORK_FIELD='[]'
           fi
 
           jq -n \

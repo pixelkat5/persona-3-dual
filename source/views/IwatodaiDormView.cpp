@@ -81,6 +81,8 @@ void IwatodaiDormView::Init()
     // setup character model
     characterAnimationCtrl.loadModel("nitro:/models/character.bin");
     character_loadTextures(characterAnimationCtrl, bitmapsCharacter);
+    characterAnimationCtrl.set(MODEL_CHARACTER_1, true);
+    characterAnimationCtrl.play();
 
     // setup environment model
     const unsigned int* bitmapsEnv[IWATODAI_DORM_TEX_COUNT] = { textureBitmap };
