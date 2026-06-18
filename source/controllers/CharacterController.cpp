@@ -75,16 +75,16 @@ CameraPosition CharacterController::update(u32 keys)
 
     float angleRad;
 
-    CameraPosition camPos;
+    Point2D<float> forward = cameraStrategy->getForwardDirection();
 
-    forwardX = -sin(angle) * speed;
-    forwardZ = cos(angle) * speed;
-    rightX = cos(angle) * speed;
-    rightZ = sin(angle) * speed;
+    forwardX = forward.x * speed;
+    forwardZ = forward.z * speed;
+    rightX = forward.z * speed;
+    rightZ = -forward.x * speed;
 
-    if (!fixedCamera && (keys & KEY_L))
+    if (cameraStrategy->allowsManualRotation() && (keys & KEY_L))
         angle -= angleIncrement;
-    if (!fixedCamera && (keys & KEY_R))
+    if (cameraStrategy->allowsManualRotation() && (keys & KEY_R))
         angle += angleIncrement;
 
     if (keys & KEY_UP)
@@ -111,7 +111,7 @@ CameraPosition CharacterController::update(u32 keys)
         deltaZ += rightZ;
     }
 
-    if (deltaX != 0.0f && deltaZ != 0.0f)
+    if (deltaX != 0.0f || deltaZ != 0.0f)
     {
         // set walking animation
         if (enableCharacterAnim && (characterAnimationCtrl.getCurrentAnimIndex() != characterWalkAnim))
@@ -120,9 +120,12 @@ CameraPosition CharacterController::update(u32 keys)
         }
 
         // normalize diagonal movement to prevent faster speed
-        const float invSqrt2 = 0.707106781187; // 1/sqrt(2)
-        deltaX *= invSqrt2;
-        deltaZ *= invSqrt2;
+        if (deltaX != 0.0f && deltaZ != 0.0f)
+        {
+            const float invSqrt2 = 0.707106781187; // 1/sqrt(2)
+            deltaX *= invSqrt2;
+            deltaZ *= invSqrt2;
+        }
     }
     else
     {
@@ -163,18 +166,6 @@ CameraPosition CharacterController::update(u32 keys)
     }
 
     // set camera positions
-    camPos.cameraX = characterTranslate.x + (sin(angle) * distance);
-    camPos.cameraY = 0.6f + height;
-    camPos.cameraZ = characterTranslate.z - (cos(angle) * distance);
-
-    // look further down the same path the camera is facing
-    camPos.targetX = characterTranslate.x - (sin(angle) * lookAhead);
-    camPos.targetY = 0.1f + height;
-    camPos.targetZ = characterTranslate.z + (cos(angle) * lookAhead);
-
-    camPos.upX = 0.0f;
-    camPos.upY = 1.0f + height;
-    camPos.upZ = 0.0f;
-
-    return camPos;
+    CharacterFrameState frameState{characterTranslate, angle, height};
+    return cameraStrategy->update(frameState);
 }

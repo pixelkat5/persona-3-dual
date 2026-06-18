@@ -1,4 +1,5 @@
 #include "PaulowniaMallView.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "core/globals.h"
 #include "math.h"
 #include <malloc.h>
@@ -146,6 +147,8 @@ void PaulowniaMallView::init()
     bgUpdate();
 
     // setup player controller
+    cameraStrategy = new FixedCameraStrategy(fixedCameraOrigin, fixedCameraHeight, fixedCameraSmoothing, characterTranslate);
+
     playerCtrl = new CharacterController(PAULOWNIA_MALL_MAP_WIDTH,
                                          PAULOWNIA_MALL_MAP_HEIGHT,
                                          &paulownia_mall_map[0][0],
@@ -155,13 +158,11 @@ void PaulowniaMallView::init()
                                          characterSize,
                                          speed,
                                          angleIncrement,
-                                         distance,
-                                         lookAhead,
                                          angle,
                                          height,
                                          characterTranslate,
                                          characterFacingAngle,
-                                         true);
+                                         cameraStrategy);
 
     // setup music
     setMusic();
@@ -422,4 +423,6 @@ void PaulowniaMallView::cleanup()
 
     delete playerCtrl;
     playerCtrl = NULL;
+    delete cameraStrategy;
+    cameraStrategy = NULL;
 }

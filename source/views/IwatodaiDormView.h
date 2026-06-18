@@ -3,6 +3,7 @@
 // controllers
 #include "controllers/CharacterController.h"
 #include "controllers/DialogueController.h"
+#include "controllers/ICameraStrategy.h"
 // environments
 #include "environments/iwatodai_dorm_floor_1.h"
 // battle-related
@@ -57,6 +58,7 @@ class IwatodaiDormView : public BaseView3D
     // controllers
     BattleController battleController;
     CharacterController* playerCtrl;
+    ICameraStrategy* cameraStrategy;
     // camera pos
     CameraPosition camPos;
     // world
@@ -67,13 +69,16 @@ class IwatodaiDormView : public BaseView3D
     // movement and viewpoint
     const float speed = 0.03f;
     const float angleIncrement = 0.07f;
-    const float distance = 0.8f;
-    const float lookAhead = 0.2f;
-    // set character initial translation position
+
     const Point2D<float> characterTranslate = Point2D<float>(0.4f, 2.8f);
     const float height = 0.0;
     const float angle = -1.6;
     const float characterFacingAngle = 180.0f;
+
+    const Point2D<float> fixedCameraOrigin = Point2D<float>(-0.3997f, 2.8234f);
+    const float fixedCameraHeight = 0.6f;
+    const float fixedCameraSmoothing = 0.06f;
+
     DialogueController dialogueCtrl;
 
     bool isBattleMenuActive = false;

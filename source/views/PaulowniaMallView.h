@@ -3,6 +3,7 @@
 // controllers
 #include "controllers/CharacterController.h"
 #include "controllers/DialogueController.h"
+#include "controllers/ICameraStrategy.h"
 // environments
 #include "environments/paulownia_mall.h"
 // battle-related
@@ -37,6 +38,7 @@ class PaulowniaMallView : public BaseView3D
     bool prevEnvironmentState;
 
     CharacterController* playerCtrl;
+    ICameraStrategy* cameraStrategy;
 
     // camera pos
     CameraPosition camPos;
@@ -48,13 +50,18 @@ class PaulowniaMallView : public BaseView3D
     // movement and viewpoint
     const float speed = 0.03f;
     const float angleIncrement = 0.05f;
-    const float distance = 1.0f;
-    const float lookAhead = 0.2f;
-    // set character initial translation position
+
+
     const Point2D<float> characterTranslate = Point2D<float>(0.0122f, 2.3355f);
-    const float height = 1.9f;
-    const float angle = 1.5708f * 2; // 180 degrees (rad)
+    const float height = 1.999f;
+    
+    const float angle = 2.5f * 2; // 180 degrees (rad)
     const float characterFacingAngle = 180;
+
+    const Point2D<float> fixedCameraOrigin = Point2D<float>(0.0122f, 3.1355f);
+    const float fixedCameraHeight = 2.35f;
+    const float fixedCameraSmoothing = 0.06f;
+
     DialogueController dialogueCtrl;
     bool isBattleMenuActive = false;
 

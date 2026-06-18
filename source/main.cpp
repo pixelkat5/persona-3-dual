@@ -86,7 +86,7 @@ static unsigned int* loadCharacterTexture(const std::string& name, bool isFemc)
 PauseMenuComponent pauseMenuCmpt;
 bool enableBillboards = true;
 bool enableCharacterAnim = true;
-bool enableDebugPrint = false;
+bool enableDebugPrint = true;
 bool isPauseMenuActive = false;
 BattleMenuComponent battleMenuCmpt;
 MenuHUDScreen menuHUDScreen;

@@ -175,6 +175,13 @@ bool AnimationController::loadModel(const char* filepath)
 
     fclose(file);
     trackIndices.assign(modelNodes.size(), 0);
+
+    currentAnimIndex = -1;
+    currentFrame = 0;
+    isPlaying = false;
+    isFinishing = false;
+    isLooping = true;
+
     return true;
 }
 

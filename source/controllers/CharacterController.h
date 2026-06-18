@@ -1,4 +1,5 @@
 #pragma once
+#include "controllers/ICameraStrategy.h"
 #include "core/enums.h"
 #include "core/geometry.h"
 #include "core/globals.h"
@@ -32,9 +33,7 @@ class CharacterController
     // movement and viewpoint
     const float speed;
     const float angleIncrement;
-    const float distance;
-    const float lookAhead;
-    const bool fixedCamera;
+    ICameraStrategy* cameraStrategy;
 
     // translation (mutable)
     float height = 0.0;
@@ -51,18 +50,15 @@ class CharacterController
                         Point2D<float> iCharacterSize,
                         float iSpeed,
                         float iAngleIncrement,
-                        float iDistance,
-                        float iLookAhead,
                         float iAngle,
                         float iHeight,
                         Point2D<float> iCharacterTranslate,
                         float iCharacterFacingAngle,
-                        bool iFixedCamera)
+                        ICameraStrategy* iCameraStrategy)
         : mapWidth(iMapWidth), mapHeight(iMapHeight), collisionMap(iCollisionMap), tileSize(iTileSize),
           worldOffsetX(iWorldOffsetX), worldOffsetZ(iWorldOffsetZ), characterSize(iCharacterSize), speed(iSpeed),
-          angleIncrement(iAngleIncrement), distance(iDistance), lookAhead(iLookAhead), fixedCamera(iFixedCamera)
+          angleIncrement(iAngleIncrement), cameraStrategy(iCameraStrategy)
     {
-        // set inital position
         angle = iAngle;
         height = iHeight;
         characterTranslate = iCharacterTranslate;

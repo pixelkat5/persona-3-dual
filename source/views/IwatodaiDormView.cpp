@@ -1,4 +1,5 @@
 #include "IwatodaiDormView.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "core/globals.h"
 #include "math.h"
 #include <malloc.h>
@@ -163,6 +164,8 @@ void IwatodaiDormView::init()
     bgUpdate();
 
     // setup player controller
+    cameraStrategy = new FixedCameraStrategy(fixedCameraOrigin, fixedCameraHeight, fixedCameraSmoothing, characterTranslate);
+
     playerCtrl = new CharacterController(IWATODAI_DORM_FLOOR_1_MAP_WIDTH,
                                          IWATODAI_DORM_FLOOR_1_MAP_HEIGHT,
                                          &iwatodai_dorm_floor_1_map[0][0],
@@ -172,13 +175,11 @@ void IwatodaiDormView::init()
                                          characterSize,
                                          speed,
                                          angleIncrement,
-                                         distance,
-                                         lookAhead,
                                          angle,
                                          height,
                                          characterTranslate,
                                          characterFacingAngle,
-                                         true);
+                                         cameraStrategy);
 
     // setup music
     setMusic();
@@ -470,4 +471,6 @@ void IwatodaiDormView::cleanup()
     // cleanup controllers
     delete playerCtrl;
     playerCtrl = NULL;
+    delete cameraStrategy;
+    cameraStrategy = NULL;
 }

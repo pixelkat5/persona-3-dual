@@ -1,4 +1,5 @@
 #include "StationView.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "core/globals.h"
 #include "math.h"
 #include <malloc.h>
@@ -78,6 +79,8 @@ void StationView::init()
     bgSetPriority(bgSharedSub3, 3);
     bgUpdate();
 
+    cameraStrategy = new FixedCameraStrategy(fixedCameraOrigin, fixedCameraHeight, fixedCameraSmoothing, characterTranslate);
+
     playerCtrl = new CharacterController(STATION_MAP_WIDTH,
                                          STATION_MAP_HEIGHT,
                                          &station_map[0][0],
@@ -87,13 +90,11 @@ void StationView::init()
                                          characterSize,
                                          speed,
                                          angleIncrement,
-                                         distance,
-                                         lookAhead,
                                          angle,
                                          height,
                                          characterTranslate,
                                          characterFacingAngle,
-                                         true);
+                                         cameraStrategy);
 
     // setup music
     musicCtrl.init((fatBasePath + "music/locations/paulowniaMall/station/paulownia_mall.pcm").c_str(), 0.0f, -1.0f);
@@ -271,4 +272,6 @@ void StationView::cleanup()
 
     delete playerCtrl;
     playerCtrl = nullptr;
+    delete cameraStrategy;
+    cameraStrategy = nullptr;
 }

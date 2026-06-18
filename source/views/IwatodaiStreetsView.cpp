@@ -1,4 +1,5 @@
 #include "IwatodaiStreetsView.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "core/globals.h"
 #include "math.h"
 #include <malloc.h>
@@ -100,6 +101,8 @@ void IwatodaiStreetsView::init()
     bgSetPriority(bgSharedSub3, 3);
     bgUpdate();
 
+    cameraStrategy = new FixedCameraStrategy(fixedCameraOrigin, fixedCameraHeight, fixedCameraSmoothing, characterTranslate);
+
     playerCtrl = new CharacterController(IWATODAI_STREETS_MAP_WIDTH,
                                          IWATODAI_STREETS_MAP_HEIGHT,
                                          &iwatodai_streets_map[0][0],
@@ -109,13 +112,11 @@ void IwatodaiStreetsView::init()
                                          characterSize,
                                          speed,
                                          angleIncrement,
-                                         distance,
-                                         lookAhead,
                                          angle,
                                          height,
                                          characterTranslate,
                                          characterFacingAngle,
-                                         true);
+                                         cameraStrategy);
 
     // setup music
     std::string streetsMusicPath;
@@ -252,7 +253,7 @@ ViewState IwatodaiStreetsView::update()
         }
 
         gluLookAt(camPos.cameraX,
-                  camPos.cameraY + 0.3f,
+                  camPos.cameraY,
                   camPos.cameraZ,
                   camPos.targetX,
                   camPos.targetY,
@@ -311,4 +312,6 @@ void IwatodaiStreetsView::cleanup()
 
     delete playerCtrl;
     playerCtrl = nullptr;
+    delete cameraStrategy;
+    cameraStrategy = nullptr;
 }
