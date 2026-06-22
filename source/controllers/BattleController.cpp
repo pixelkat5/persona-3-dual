@@ -34,6 +34,9 @@ void BattleController::execute(Player* player,
     pendingAlert.clear();
     battleResult = BattleResult();
     allOutAttackWasPossibleThisKnockDown = false;
+    pendingPersonaSwitch = false;
+    switchedPersonaThisTurn = false;
+    personaBeforeSwitch = nullptr;
 
     calculateTurnOrder();
 
@@ -79,6 +82,10 @@ BattleResult BattleController::update(u32 keys)
             }
             else if (menuIndex == ACTION_SWITCH)
             {
+                if (switchedPersonaThisTurn)
+                {
+                    return battleResult;
+                }
                 phase = BattlePhase::ChoosePersona;
             }
         }
@@ -130,7 +137,14 @@ BattleResult BattleController::update(u32 keys)
 
     case BattlePhase::ChoosePersona:
     {
-        PartyMember* actor = static_cast<PartyMember*>(currentParticipantTurn);
+        Player* actor = static_cast<Player*>(currentParticipantTurn);
+
+        //inital capture of start persona of this turn, so that if we switch personas and
+        //then switch back to the same old starting persona it wont count it as a switch
+        if (personaBeforeSwitch == nullptr)
+        {
+            personaBeforeSwitch = actor->curPersona;
+        }
 
         battleMenuCmpt.loadPersonaOptions(&actor->personas);
         menuIndex = -1;
@@ -142,15 +156,17 @@ BattleResult BattleController::update(u32 keys)
             {
                 pendingAlert = "Already using this Persona\n";
                 alertReturnPhase = BattlePhase::ChoosePersona;
-                battleMenuCmpt.reset();
-                phase = BattlePhase::ShowAlert;
             }
             else
             {
                 actor->curPersona = actor->personas[menuIndex];
+                pendingPersonaSwitch = (actor->curPersona != personaBeforeSwitch);
                 pendingAlert = "Switched to: " + actor->curPersona->name + "\n";
-                advanceTurn();
+                alertReturnPhase = BattlePhase::ChooseAction;
             }
+
+            battleMenuCmpt.reset();
+            phase = BattlePhase::ShowAlert;
         }
 
         if (keys & KEY_B)
@@ -388,6 +404,9 @@ void BattleController::advanceTurn()
 
     selectedSkill = nullptr;
 
+    switchedPersonaThisTurn = pendingPersonaSwitch;
+    pendingPersonaSwitch = false;
+
     if (currentParticipantTurn->oneMore)
     {
         currentParticipantTurn->oneMore = false;
@@ -396,6 +415,9 @@ void BattleController::advanceTurn()
         setNextPhase(nextPhase);
         return;
     }
+
+    switchedPersonaThisTurn = false;
+    personaBeforeSwitch = nullptr;
 
     currentParticipantTurn->knockedDown = false;
 

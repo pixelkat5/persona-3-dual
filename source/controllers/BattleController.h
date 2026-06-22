@@ -40,6 +40,10 @@ class BattleController
     int menuIndex = 0;
     Skill* selectedSkill = nullptr;
 
+    bool pendingPersonaSwitch = false;
+    bool switchedPersonaThisTurn = false;
+    PersonaBase* personaBeforeSwitch = nullptr;
+
     std::string pendingAlert;
     BattlePhase alertReturnPhase = BattlePhase::Done;
 
