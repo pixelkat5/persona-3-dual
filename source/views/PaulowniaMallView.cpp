@@ -24,7 +24,7 @@ static const unsigned int* loadEnvironmentBitmap(const std::string& path, Graphi
 void PaulowniaMallView::setMusic()
 {
     musicCtrl.init(
-        (fatBasePath + "music/locations/paulowniaMall/overworld/color_your_night.pcm").c_str(), 0.0f, 920.973f);
+        (fatBasePath + "music/locations/paulowniaMall/overworld/color_your_night.pcm").c_str(), 2.050f, 204.191f);
 }
 
 PaulowniaMallView::PaulowniaMallView()
@@ -198,8 +198,6 @@ void PaulowniaMallView::init()
     // setup UI
     // NOTE: bg 0 is the 3D view
     int bgMain[3] = {1, 2, 3};
-    // TODO: Setting the first index to anything other than bgSharedSub results in black bg (but sprites still load)
-    // This might be okay/intended, as long as we create 4 seperate bg to pass in
     int bgSub[4] = {bgSharedSub2, bgSharedSub3, 2, 3};
 
     // initialize sub sprite engine with 1D mapping, 128 byte boundry, external palette support

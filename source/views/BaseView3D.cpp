@@ -10,8 +10,9 @@ void BaseView3D::init()
     videoSetModeSub(MODE_0_2D);
 
     // set vram
-    vramSetBankA(VRAM_A_TEXTURE);
-    vramSetBankB(VRAM_B_TEXTURE);
+    vramSetBankA(VRAM_A_TEXTURE_SLOT0); // texture slot 0
+    vramSetBankB(VRAM_B_TEXTURE_SLOT1); // texture slot 1
+
     vramSetBankC(VRAM_C_SUB_BG);
     vramSetBankD(VRAM_D_SUB_SPRITE);
     vramSetBankH(VRAM_H_SUB_BG_EXT_PALETTE);

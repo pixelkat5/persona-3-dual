@@ -97,7 +97,7 @@ void StationView::init()
                                          cameraStrategy);
 
     // setup music
-    musicCtrl.init((fatBasePath + "music/locations/paulowniaMall/station/paulownia_mall.pcm").c_str(), 0.0f, -1.0f);
+    musicCtrl.init((fatBasePath + "music/locations/paulowniaMall/station/paulownia_mall.pcm").c_str(), 2.002f, 73.939f);
 
     // setup character model
     std::string modelPath = fatBasePath + "models/";

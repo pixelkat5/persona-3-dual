@@ -44,7 +44,6 @@ Now, you can open melonDS and load the `persona-3-dual.nds` ROM!
 <img width="316" height="300" alt="melonDS" src="https://github.com/user-attachments/assets/d34997e6-d13f-4428-a2b6-41b5272405d7" />
 
 ### Real Hardware (DS / DSi / 3DS)
-#### Method 1: Manual Download
 Requires [TWiLight Menu++](https://wiki.ds-homebrew.com/twilightmenu/) with DLDI patching enabled.
 
 1. Download `persona-3-dual.nds` and `data.zip` from the latest release, & decompress `data.zip`
@@ -61,18 +60,6 @@ Requires [TWiLight Menu++](https://wiki.ds-homebrew.com/twilightmenu/) with DLDI
        └── ...
    ```
 5. Launch the game through TWiLight Menu++ as normal.
-
-#### Method 2: Automatic Download with Universal Updater (3DS Only)
-1. Install [Universal Updater](https://github.com/Universal-Team/Universal-Updater/releases) if you haven't already
-2. Open Universal Updater, go to **Settings** > **Select UniStore** > tap the **+** icon at the bottom
-3. Scan the QR code below with the QR icon, or tap the keyboard icon and enter the URL manually:
-
-<img src="../unistore/unistore-qr.png" alt="UniStore QR Code" width="400">
-
-> `https://raw.githubusercontent.com/p3d-project/persona-3-dual/main/unistore/p3d.unistore`
-
-4. Find **Persona 3 Dual** in the store and tap **Install/Update**
-
 ---
 
 ## Developer & Artist Setup

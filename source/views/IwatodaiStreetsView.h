@@ -1,6 +1,7 @@
 #pragma once
 #include "controllers/CharacterController.h"
 #include "controllers/ICameraStrategy.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "environments/iwatodai_streets.h"
 #include "views/BaseView3D.h"
 #include <nds/arm9/console.h>
@@ -47,4 +48,6 @@ class IwatodaiStreetsView : public BaseView3D
     const Point2D<float> fixedCameraOrigin = Point2D<float>(1.6f, 2.1f);
     const float fixedCameraHeight = 1.8f;
     const float fixedCameraSmoothing = 0.06f;
+
+    void setMusic();
 };

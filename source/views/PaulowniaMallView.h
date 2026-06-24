@@ -51,10 +51,8 @@ class PaulowniaMallView : public BaseView3D
     const float speed = 0.03f;
     const float angleIncrement = 0.05f;
 
-
     const Point2D<float> characterTranslate = Point2D<float>(0.0122f, 2.3355f);
     const float height = 1.999f;
-    
     const float angle = 2.5f * 2; // 180 degrees (rad)
     const float characterFacingAngle = 180;
 

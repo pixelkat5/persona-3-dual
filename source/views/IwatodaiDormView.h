@@ -39,27 +39,11 @@ class IwatodaiDormView : public BaseView3D
     iwatodai_dorm_floor_1_Environment iwatodaiDormFloor1Env;
 
     ViewPhase phase;
-    bool prevBattleState;
     bool prevPauseState;
     bool prevDialogueState;
     bool prevEnvironmentState;
 
-    // Battle participants
-    Enemy* mercilessMaya = new Enemy(EnemyDb::mercilessMaya);
-    Enemy* cowardlyMaya = new Enemy(EnemyDb::cowardlyMaya);
-    Player* player = new Player(CharacterProfileDb::player);
-    PartyMember* yukari = new PartyMember(CharacterProfileDb::yukari);
-    PartyMember* junpei = new PartyMember(CharacterProfileDb::junpei);
-
-    std::vector<BattleParticipant*> battleParticipants = {mercilessMaya, cowardlyMaya, player, yukari, junpei};
-    std::vector<Enemy*> enemies = {mercilessMaya, cowardlyMaya};
-    std::vector<PartyMember*> partyMembers = {player, yukari, junpei};
-
-    // hardcoded for now, we will have to build a battle creater for tartarus anyways
-    BattleStartCondition battleStartCondition = BattleStartCondition::Even;
-
     // controllers
-    BattleController battleController;
     CharacterController* playerCtrl;
     ICameraStrategy* cameraStrategy;
     // camera pos

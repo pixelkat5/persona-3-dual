@@ -21,7 +21,7 @@ const unsigned int* loadEnvironmentBitmap(const std::string& path, GraphicAsset&
 
 void IwatodaiDormView::setMusic()
 {
-    musicCtrl.init((fatBasePath + "music/locations/iwatodaiDorm/iwatodai_dorm.pcm").c_str(), 0.0f, 920.973f);
+    musicCtrl.init((fatBasePath + "music/locations/iwatodaiDorm/iwatodai_dorm.pcm").c_str(), 1.831f, 65.907f);
 }
 
 // TODO: dont forget to clear in future
@@ -128,6 +128,8 @@ void IwatodaiDormView::setupEnvironment()
     bitmapsEnv[IWATODAI_DORM_FLOOR_1_TEX_F007_002OBJ10] =
         loadEnvironmentBitmap(fatBasePath + "environments/iwatodai_dorm_floor_1/f007_002obj10",
                               envTextures[IWATODAI_DORM_FLOOR_1_TEX_F007_002OBJ10]);
+    bitmapsEnv[IWATODAI_DORM_FLOOR_1_TEX_AKIHIKO] = loadEnvironmentBitmap(
+        fatBasePath + "environments/iwatodai_dorm_floor_1/akihiko", envTextures[IWATODAI_DORM_FLOOR_1_TEX_AKIHIKO]);
     iwatodaiDormFloor1Env.load((fatBasePath + "environments/iwatodai_dorm_floor_1/iwatodai_dorm_floor_1.bin").c_str(),
                                bitmapsEnv);
     for (int i = 0; i < IWATODAI_DORM_FLOOR_1_TEX_COUNT; ++i)
@@ -282,10 +284,6 @@ void IwatodaiDormView::init()
     // setup pause menu
     pauseMenuCmpt.init(bgSharedSub1, &isPauseMenuActive);
 
-    // setup battle menu
-    // TODO: check if isBattleMenuActive is just a dummy value
-    battleMenuCmpt.init(-1, &isBattleMenuActive);
-
     // setup UI
     // NOTE: bg 0 is the 3D view
     int bgMain[3] = {1, 2, 3};
@@ -302,7 +300,6 @@ void IwatodaiDormView::init()
     uiCtrl.show(&menuHUDScreen, false);
 
     // setup view phases
-    prevBattleState = false;
     prevPauseState = false;
     prevDialogueState = false;
     prevEnvironmentState = false;
@@ -322,49 +319,6 @@ ViewState IwatodaiDormView::update()
 
     switch (phase)
     {
-    case ViewPhase::Battle:
-    {
-        bool isActive = battleController.isActive();
-        // set
-        if (!isActive && !prevBattleState)
-        {
-            // TODO: display battle menu UI
-            uiCtrl.hideAll();
-            battleController.execute(player, &partyMembers, &enemies, &battleParticipants, battleStartCondition);
-            prevBattleState = true;
-        }
-        //exit
-        else if (!isActive && prevBattleState)
-        {
-            //battle cleanup
-            for (BattleParticipant* participant : battleParticipants)
-            {
-                delete participant;
-            }
-
-            battleParticipants.clear();
-            enemies.clear();
-            partyMembers.clear();
-
-            //Reset battle
-            mercilessMaya = new Enemy(EnemyDb::mercilessMaya);
-            cowardlyMaya = new Enemy(EnemyDb::cowardlyMaya);
-            player = new Player(CharacterProfileDb::player);
-            yukari = new PartyMember(CharacterProfileDb::yukari);
-            junpei = new PartyMember(CharacterProfileDb::junpei);
-
-            battleParticipants = {mercilessMaya, cowardlyMaya, player, yukari, junpei};
-            enemies = {mercilessMaya, cowardlyMaya};
-            partyMembers = {player, yukari, junpei};
-
-            IwatodaiDormView::setMusic();
-            prevBattleState = false;
-
-            phase = ViewPhase::Environment;
-        }
-        break;
-    }
-
     case ViewPhase::Pause:
     {
         // set
@@ -448,30 +402,27 @@ ViewState IwatodaiDormView::update()
             }
         }
 
-        // start dialogue
-        if (pressed & KEY_A)
-        {
-            prevEnvironmentState = false;
-            phase = ViewPhase::Dialogue;
-        }
-
-        // start battle
-        if (keys & KEY_Y)
-        {
-            prevEnvironmentState = false;
-            phase = ViewPhase::Battle;
-        }
-
         // check position
-        if (playerCtrl->isTileAt() == TileType::SCENE_1)
+        switch (playerCtrl->isTileAt())
         {
+        case TileType::SCENE_1:
             musicCtrl.pause();
             return ViewState::PAULOWNIA_MALL;
-        }
-        else if (playerCtrl->isTileAt() == TileType::SCENE_0)
-        {
+        case TileType::SCENE_0:
             musicCtrl.pause();
             return ViewState::IWATODAI_STREETS;
+        case TileType::C_AK:
+            // start dialogue
+            iprintf("\x1b[0;0HTalk");
+            if (pressed & KEY_A)
+            {
+                prevEnvironmentState = false;
+                phase = ViewPhase::Dialogue;
+            }
+            break;
+        default:
+            consoleClear();
+            break;
         }
 
         // update camera position
@@ -529,7 +480,6 @@ ViewState IwatodaiDormView::update()
     }
     }
 
-    battleController.update(pressed);
     dialogueCtrl.update(keys);
     characterAnimationCtrl.update();
     musicCtrl.update();
