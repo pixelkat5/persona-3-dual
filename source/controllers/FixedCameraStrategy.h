@@ -20,6 +20,7 @@ class FixedCameraStrategy : public ICameraStrategy
         return false;
     }
     Point2D<float> getForwardDirection() const override;
+    Point2D<float> getTarget() const { return target; }
 
   private:
     const Point2D<float> origin;

@@ -56,13 +56,98 @@ def _load_tile_map():
 
 
 def parse_jmap(path_obj, tile_map):
+    """
+    Returns (rows, cam_zones).
+    rows      = list of list of ints (tile map).
+    cam_zones = list of dicts, each with keys:
+        id, x1, z1, x2, z2, cam_wx, cam_wz, height, smoothing,
+        corners: list of 4 (tx, tz) tuples [TL, TR, BR, BL].
+        If corner data is absent from the file, corners default to the bounding rect.
+    """
     rows = []
+    cam_zones = []
+    in_cam_zones = False
+
     with path_obj.open("r") as f:
         for raw in f:
-            line = raw.split("#")[0].strip()
+            t = raw.strip()
+
+            # Section headers
+            if t == "[CAMERA_ZONES]":
+                in_cam_zones = True
+                continue
+            if t.startswith("[") and t.endswith("]"):
+                in_cam_zones = False
+                continue
+
+            if in_cam_zones:
+                t = t.split("#")[0].strip()
+                if not t:
+                    continue
+                parts = [p.strip() for p in t.split(",")]
+                if len(parts) >= 5:
+                    try:
+                        zid  = int(parts[0])
+                        x1   = int(parts[1])
+                        z1   = int(parts[2])
+                        x2   = int(parts[3])
+                        z2   = int(parts[4])
+                        camwx = None if len(parts) <= 5 or parts[5] == "null" else float(parts[5])
+                        camwz = None if len(parts) <= 6 or parts[6] == "null" else float(parts[6])
+                        height    = float(parts[7]) if len(parts) > 7 else 3.0
+                        smoothing = float(parts[8]) if len(parts) > 8 else 0.1
+                        # Optional corner data appended by the map editor:
+                        # indices 9-16 are tlx, tlz, trx, trz, brx, brz, blx, blz
+                        if len(parts) >= 17:
+                            try:
+                                corners = [
+                                    (int(parts[9]),  int(parts[10])),  # TL
+                                    (int(parts[11]), int(parts[12])),  # TR
+                                    (int(parts[13]), int(parts[14])),  # BR
+                                    (int(parts[15]), int(parts[16])),  # BL
+                                ]
+                            except ValueError:
+                                corners = None
+                        else:
+                            corners = None
+                        # Fall back to plain bounding rect if corners are absent
+                        if corners is None:
+                            corners = [
+                                (x1,     z1),
+                                (x2 + 1, z1),
+                                (x2 + 1, z2 + 1),
+                                (x1,     z2 + 1),
+                            ]
+                        # Parse cutouts: ", cutouts: x1 z1 x2 z2 | ..."
+                        cutouts = []
+                        cutout_marker = t.find("cutouts:")
+                        if cutout_marker != -1:
+                            cutout_data = t[cutout_marker + 8:].strip()
+                            for entry in cutout_data.split("|"):
+                                nums = entry.strip().split()
+                                if len(nums) >= 4:
+                                    try:
+                                        cutouts.append((
+                                            int(nums[0]), int(nums[1]),
+                                            int(nums[2]), int(nums[3]),
+                                        ))
+                                    except ValueError:
+                                        pass
+                        cam_zones.append({
+                            "id": zid, "x1": x1, "z1": z1, "x2": x2, "z2": z2,
+                            "cam_wx": camwx, "cam_wz": camwz,
+                            "height": height, "smoothing": smoothing,
+                            "corners": corners,
+                            "cutouts": cutouts,
+                        })
+                    except ValueError:
+                        pass
+                continue
+
+            line = t.split("#")[0].strip()
             if not line:
                 continue
-            tokens = [t.strip() for t in line.split(",") if t.strip()]
+            tokens = [tok.strip() for tok in line.split(",") if tok.strip()]
             if not tokens:
                 continue
             row = []
@@ -71,7 +156,8 @@ def parse_jmap(path_obj, tile_map):
                     raise ValueError(f"Unknown tile token '{tok}' in {path_obj.name}")
                 row.append(tile_map[tok])
             rows.append(row)
-    return rows
+
+    return rows, cam_zones
 
 
 def validate(rows, path_obj):
@@ -86,9 +172,10 @@ def validate(rows, path_obj):
     return len(rows), width
 
 
-def to_header(rows, height, width, stem):
+def to_header(rows, height, width, stem, cam_zones=None):
     guard = re.sub(r"[^A-Z0-9]", "_", stem.upper()) + "_H"
     define_prefix = re.sub(r"[^A-Z0-9]", "_", stem.upper())
+    cam_zones = cam_zones or []
 
     lines = []
     lines.append(f"// Auto-generated from {stem}.jmap - do not edit by hand")
@@ -111,6 +198,70 @@ def to_header(rows, height, width, stem):
         lines.append(f"    {{ {values} }}{comma}")
     lines.append("};")
     lines.append("")
+
+    # Camera zones
+    if cam_zones:
+        lines.append("// Camera zone structs")
+        lines.append("// cam_zone_corner_t: a single grid-line tile coordinate pair.")
+        lines.append("typedef struct {")
+        lines.append("    uint16_t tx, tz;")
+        lines.append("} cam_zone_corner_t;")
+        lines.append("")
+        lines.append("// cam_zone_t: trigger rect + camera parameters + 4 corners + cutout rects.")
+        lines.append("// x1/z1/x2/z2 are the axis-aligned bounding rect (tile coords, inclusive).")
+        lines.append("// corners[4] are [TL, TR, BR, BL] in grid-line tile coords.")
+        lines.append("// cutouts[]: rectangular holes carved out of the zone (tile coords, inclusive).")
+        lines.append("typedef struct {")
+        lines.append("    uint16_t x1, z1, x2, z2;")
+        lines.append("} cam_zone_cutout_t;")
+        lines.append("")
+        # Find the maximum cutout count across all zones, for fixed-size array.
+        max_cutouts = max((len(z["cutouts"]) for z in cam_zones), default=0)
+        lines.append(f"#define {define_prefix}_CAM_ZONE_MAX_CUTOUTS {max(max_cutouts, 1)}")
+        lines.append("")
+        lines.append("typedef struct {")
+        lines.append("    uint8_t           id;")
+        lines.append("    uint16_t          x1, z1, x2, z2;         /* bounding rect, inclusive */")
+        lines.append("    float             cam_x, cam_z;            /* world origin (NaN = unset) */")
+        lines.append("    float             height;")
+        lines.append("    float             smoothing;")
+        lines.append("    cam_zone_corner_t corners[4];              /* TL, TR, BR, BL */")
+        lines.append(f"    cam_zone_cutout_t cutouts[{define_prefix}_CAM_ZONE_MAX_CUTOUTS]; /* carved holes */")
+        lines.append("    uint8_t           cutout_count;")
+        lines.append("} cam_zone_t;")
+        lines.append("")
+        lines.append(f"#define {define_prefix}_CAM_ZONE_COUNT {len(cam_zones)}")
+        lines.append(f"static const cam_zone_t {stem}_cam_zones[{define_prefix}_CAM_ZONE_COUNT] = {{")
+        for i, z in enumerate(cam_zones):
+            zid       = z["id"]
+            x1, z1    = z["x1"], z["z1"]
+            x2, z2    = z["x2"], z["z2"]
+            camwx     = z["cam_wx"]
+            camwz     = z["cam_wz"]
+            height    = z["height"]
+            smoothing = z["smoothing"]
+            corners   = z["corners"]   # list of 4 (tx, tz) tuples
+            cutouts   = z["cutouts"]   # list of (cx1, cz1, cx2, cz2) tuples
+            comma = "," if i < len(cam_zones) - 1 else ""
+            cx = f"{camwx:.4f}f" if camwx is not None else "__builtin_nanf(\"\")"  # NAN sentinel
+            cz = f"{camwz:.4f}f" if camwz is not None else "__builtin_nanf(\"\")"  # NAN sentinel
+            corner_init = ", ".join(f"{{ {c[0]}, {c[1]} }}" for c in corners)
+            # Pad cutouts array to max_cutouts with zeroes.
+            cutout_entries = [f"{{ {c[0]}, {c[1]}, {c[2]}, {c[3]} }}" for c in cutouts]
+            while len(cutout_entries) < max(max_cutouts, 1):
+                cutout_entries.append("{ 0, 0, 0, 0 }")
+            cutout_init = ", ".join(cutout_entries)
+            lines.append(
+                f"    {{ {zid}, {x1}, {z1}, {x2}, {z2}, "
+                f"{cx}, {cz}, {height:.4f}f, {smoothing:.4f}f, "
+                f"{{ {corner_init} }}, {{ {cutout_init} }}, {len(cutouts)} }}{comma}  // cam_{zid}"
+            )
+        lines.append("};")
+        lines.append("")
+    else:
+        lines.append(f"#define {define_prefix}_CAM_ZONE_COUNT 0")
+        lines.append("")
+
     lines.append("#endif")
     return "\n".join(lines) + "\n"
 
@@ -144,15 +295,16 @@ def convert(input_file: str, output_file: str, config: dict) -> None:
 
     stem = jmap_path.stem
 
-    rows = parse_jmap(jmap_path, tile_map)
+    rows, cam_zones = parse_jmap(jmap_path, tile_map)
     height, width = validate(rows, jmap_path)
-    header = to_header(rows, height, width, stem)
+    header = to_header(rows, height, width, stem, cam_zones)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(header)
     _format_cpp_h_files([str(out_path)])
 
-    print(f"Written: {out_path.name} / ({width}x{height})")
+    zone_msg = f" + {len(cam_zones)} cam zone(s)" if cam_zones else ""
+    print(f"Written: {out_path.name} / ({width}x{height}){zone_msg}")
 
 
 # Standalone CLI

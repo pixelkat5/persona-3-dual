@@ -1,7 +1,34 @@
-// TILE DEFINITIONS & HELPERS
+let cameraZones = [];          // Array of zone objects
+let camZoneMode  = false;      // "zone" draw mode active
+let camGizmoMode = false;      // "place camera" gizmo mode active
+let camZoneDraw  = null;       // { id, startTX, startTZ, curTX, curTZ } during rect drag
+let camZoneSelected = null;    // index into cameraZones, or null
+let camZoneOverlay  = null;    // <canvas> overlay element
+let camGizmoDrag = null;       // { zoneIdx } while dragging a gizmo
+let camCornerDrag = null;      // { zoneIdx, cornerIdx } while dragging a resize handle
+let camCutoutDraw = null;      // { zoneIdx, startTX, startTZ, curTX, curTZ } during shift+drag cutout
+
+// Corner order: 0=TL 1=TR 2=BR 3=BL, clockwise from top-left.
+const CORNER_NEIGHBORS = [
+  { sameTZ: 1, sameTX: 3 }, // TL
+  { sameTZ: 0, sameTX: 2 }, // TR
+  { sameTZ: 3, sameTX: 1 }, // BR
+  { sameTZ: 2, sameTX: 0 }, // BL
+];
+
+const CAM_ZONE_COLORS = [
+  "#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6",
+  "#1abc9c", "#e67e22", "#e91e8c", "#00bcd4", "#cddc39"
+];
+
+function camZoneColor(id) {
+  return CAM_ZONE_COLORS[id % CAM_ZONE_COLORS.length];
+}
+
 let TILE_DEFS = {};
 let TILE_CATEGORIES = []; // Stores { id, name, tiles: [] }
-let activeCategory = "all";
+let activeCategory = localStorage.getItem("me_active_category") || "all";
+let currentJmapStem = "map"; // filename stem from the last loaded .jmap
 
 function hslToHex(h, s, l) {
   l /= 100;
@@ -27,24 +54,23 @@ function generateDeterministicColor(seedString) {
 
 async function loadTileDefinitions() {
   try {
-    const response = await fetch("../../tile_map.json");
-    if (!response.ok) throw new Error("Network response was not ok");
+    // Root-relative first (Vercel), then relative fallback (local dev server).
+    let response = await fetch("/tile_map.json");
+    if (!response.ok) response = await fetch("../../tile_map.json");
+    if (!response.ok) throw new Error("tile_map.json not found at /tile_map.json or ../../tile_map.json");
     const data = await response.json();
 
     const shortcuts = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
     let shortcutIdx = 0;
 
-    // Initialize "All Tiles" as the default base category
+
     TILE_CATEGORIES = [{ id: "all", name: "All Tiles", tiles: [] }];
     let currentGroup = TILE_CATEGORIES[0];
 
-    // Iterate over the keys (JS preserves insertion order for string keys)
     for (const key of Object.keys(data.TILE_MAP_META)) {
       if (key === "_legacy_aliases") continue;
 
-      // Detect if this is a group header
       if (key.startsWith("_group_")) {
-        // Extract the nice string name after the colon (e.g., "Core / System")
         const groupName =
           data.TILE_MAP_META[key].split(":")[1]?.trim() ||
           data.TILE_MAP_META[key];
@@ -53,7 +79,6 @@ async function loadTileDefinitions() {
         continue;
       }
 
-      // Standard tile mapping
       const metaLabel = data.TILE_MAP_META[key];
       const baseColor = generateDeterministicColor(key + metaLabel);
 
@@ -69,7 +94,6 @@ async function loadTileDefinitions() {
         textColor: "#ffffff",
       };
 
-      // Add to "All Tiles" and the respective group
       TILE_CATEGORIES[0].tiles.push(key);
       if (currentGroup !== TILE_CATEGORIES[0]) {
         currentGroup.tiles.push(key);
@@ -105,18 +129,21 @@ function buildCategorySelect() {
   });
 
   select.value = activeCategory;
+  if (!select.value) select.value = select.options[0]?.value || "all";
+  activeCategory = select.value;
 
-  select.addEventListener("change", (e) => {
+  // onchange avoids stacking duplicate listeners on repeated calls
+  select.onchange = (e) => {
     activeCategory = e.target.value;
+    try { localStorage.setItem("me_active_category", activeCategory); } catch (_) {}
     buildPalette();
-  });
+  };
 }
 
 function buildPalette() {
   const el = document.getElementById("palette");
   el.innerHTML = "";
 
-  // Find the selected category, default to "All Tiles"
   const cat =
     TILE_CATEGORIES.find((c) => c.id === activeCategory) || TILE_CATEGORIES[0];
 
@@ -156,20 +183,23 @@ let isPainting = false;
 let paintErase = false;
 let currentView = "top";
 
-// Undo / Redo
+// Undo / Redo (tiles)
 let undoStack = [];
 let redoStack = [];
-let strokeBefore = null; // snapshot captured by beginStroke()
+let strokeBefore = null;
+
+// Separate zone undo stack so Ctrl+Z applies to zones too
+let zoneUndoStack = [];
+let zoneRedoStack = [];
 
 // Minimap
 let minimapCanvas = null;
 let minimapCtx = null;
 
-// Free-look
-// The camera orbits `freeTarget` using spherical coordinates.
+// Free-look: camera orbits freeTarget in spherical coordinates
 let isFreeLook = false;
-let freeTheta = -Math.PI / 5; // azimuth (around Y)
-let freePhi = Math.PI / 3.5; // polar   (from top)
+let freeTheta = -Math.PI / 5; // azimuth
+let freePhi = Math.PI / 3.5;   // polar
 const FREE_RADIUS = 15;
 let freeTarget = null; // THREE.Vector3, set in initThree
 let freeDragStartX = 0;
@@ -218,7 +248,6 @@ function initThree() {
     1000,
   );
 
-  // freeTarget needs THREE. Initialise here to world centre
   freeTarget = new THREE.Vector3(
     (params.width * params.tileSize) / 2 - params.offsetX,
     0,
@@ -299,6 +328,7 @@ function updateCameraFrustum() {
   }
   camera.updateProjectionMatrix();
   redrawMinimap(); // keep minimap frustum rect in sync
+  redrawCamZoneOverlay(); // keep zone overlay aligned with camera
 }
 
 function resetCamera() {
@@ -536,9 +566,475 @@ function redrawTiles() {
   redrawMinimap(); // keep minimap in sync whenever tiles change
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CAMERA ZONE OVERLAY
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initCamZoneOverlay() {
+  if (camZoneOverlay) return;
+  camZoneOverlay = document.createElement("canvas");
+  camZoneOverlay.style.cssText =
+    "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4";
+  document.getElementById("viewport").appendChild(camZoneOverlay);
+}
+
+// World XZ → overlay canvas pixel (top-down only).
+// In top view, screen-up = world -Z, so world Z range = -camera.top / -camera.bottom.
+function worldToOverlay(wx, wz) {
+  const minZ = -camera.top;
+  const maxZ = -camera.bottom;
+  const px = (wx - camera.left) / (camera.right - camera.left) * camZoneOverlay.width;
+  const py = (wz - minZ) / (maxZ - minZ) * camZoneOverlay.height;
+  return { x: px, y: py };
+}
+
+function tileToWorld(tx, tz) {
+  const { tileSize: ts, offsetX: ox, offsetZ: oz } = params;
+  return { wx: tx * ts - ox, wz: tz * ts - oz };
+}
+
+// Snaps to grid lines (not tile centers); used for corner-handle dragging.
+function worldToGridLine(wx, wz) {
+  const { tileSize: ts, offsetX: ox, offsetZ: oz } = params;
+  return {
+    tx: Math.round((wx + ox) / ts),
+    tz: Math.round((wz + oz) / ts),
+  };
+}
+
+// x2/z2 are inclusive tile indices; right/bottom grid lines sit one past them.
+function defaultCornersFromRect(x1, z1, x2, z2) {
+  return [
+    { tx: x1,     tz: z1 },
+    { tx: x2 + 1, tz: z1 },
+    { tx: x2 + 1, tz: z2 + 1 },
+    { tx: x1,     tz: z2 + 1 },
+  ];
+}
+
+// Falls back to default rect corners for zones loaded from older .jmap files.
+function zoneCorners(zone) {
+  return zone.corners || defaultCornersFromRect(zone.x1, zone.z1, zone.x2, zone.z2);
+}
+
+// Keep bounding rect in sync after a corner drag.
+function syncZoneBoundsFromCorners(zone) {
+  const txs = zone.corners.map((c) => c.tx);
+  const tzs = zone.corners.map((c) => c.tz);
+  zone.x1 = Math.min(...txs);
+  zone.x2 = Math.max(...txs) - 1;
+  zone.z1 = Math.min(...tzs);
+  zone.z2 = Math.max(...tzs) - 1;
+}
+
+function hasZoneCutouts(zone) {
+  return zone.cutouts && zone.cutouts.length > 0;
+}
+
+// Returns the cutout index under the mouse, or -1.
+function hitTestCutout(canvas, e, zone) {
+  if (!zone.cutouts || !camZoneOverlay || !camera) return -1;
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  for (let i = 0; i < zone.cutouts.length; i++) {
+    const c = zone.cutouts[i];
+    const tl = worldToOverlay(tileToWorld(c.x1, c.z1).wx, tileToWorld(c.x1, c.z1).wz);
+    const br = worldToOverlay(tileToWorld(c.x2 + 1, c.z2 + 1).wx, tileToWorld(c.x2 + 1, c.z2 + 1).wz);
+    const minX = Math.min(tl.x, br.x), maxX = Math.max(tl.x, br.x);
+    const minY = Math.min(tl.y, br.y), maxY = Math.max(tl.y, br.y);
+    if (px >= minX && px <= maxX && py >= minY && py <= maxY) return i;
+  }
+  return -1;
+}
+
+// Returns the corner handle index (0-3) under the mouse, or -1.
+function hitTestZoneCorner(canvas, e, zone, radiusPx = 10) {
+  if (!zone || !camZoneOverlay || !camera) return -1;
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  const corners = zoneCorners(zone);
+  for (let i = 0; i < corners.length; i++) {
+    const w = tileToWorld(corners[i].tx, corners[i].tz);
+    const sc = worldToOverlay(w.wx, w.wz);
+    if (Math.hypot(px - sc.x, py - sc.y) < radiusPx) return i;
+  }
+  return -1;
+}
+
+function redrawCamZoneOverlay(previewZone) {
+  if (!camZoneOverlay || !camera) return;
+  const vp = document.getElementById("viewport");
+  camZoneOverlay.width  = vp.clientWidth;
+  camZoneOverlay.height = vp.clientHeight;
+  const ctx = camZoneOverlay.getContext("2d");
+  ctx.clearRect(0, 0, camZoneOverlay.width, camZoneOverlay.height);
+
+  const { tileSize: ts, offsetX: ox, offsetZ: oz } = params;
+
+  // Build a screen-space cutout rect path (grid-line snapped tile coords).
+  const cutoutScreenRect = (c) => {
+    const tl = worldToOverlay(tileToWorld(c.x1,     c.z1    ).wx, tileToWorld(c.x1,     c.z1    ).wz);
+    const br = worldToOverlay(tileToWorld(c.x2 + 1, c.z2 + 1).wx, tileToWorld(c.x2 + 1, c.z2 + 1).wz);
+    return { x: Math.min(tl.x, br.x), y: Math.min(tl.y, br.y),
+             w: Math.abs(br.x - tl.x), h: Math.abs(br.y - tl.y) };
+  };
+
+  const drawZoneRect = (zone, isPreview, isSelected) => {
+    const color = camZoneColor(zone.id);
+    const corners = zoneCorners(zone);
+    const screenPts = corners.map((c) => {
+      const w = tileToWorld(c.tx, c.tz);
+      return worldToOverlay(w.wx, w.wz);
+    });
+    const xs = screenPts.map((p) => p.x);
+    const ys = screenPts.map((p) => p.y);
+    const w = Math.max(...xs) - Math.min(...xs);
+    const h = Math.max(...ys) - Math.min(...ys);
+    if (w <= 0 || h <= 0) return;
+
+    // evenodd fill: cutout rects wound opposite to outer path punch holes
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(screenPts[0].x, screenPts[0].y);
+      for (let i = 1; i < screenPts.length; i++) ctx.lineTo(screenPts[i].x, screenPts[i].y);
+      ctx.closePath();
+      if (!isPreview && zone.cutouts) {
+        for (const c of zone.cutouts) {
+          const r = cutoutScreenRect(c);
+          if (r.w > 0 && r.h > 0) {
+              ctx.moveTo(r.x, r.y);
+            ctx.lineTo(r.x, r.y + r.h);
+            ctx.lineTo(r.x + r.w, r.y + r.h);
+            ctx.lineTo(r.x + r.w, r.y);
+            ctx.closePath();
+          }
+        }
+      }
+    };
+
+    ctx.save();
+    buildPath();
+    ctx.globalAlpha = isPreview ? 0.25 : isSelected ? 0.30 : 0.18;
+    ctx.fillStyle = color;
+    ctx.fill("evenodd");
+
+    buildPath();
+    ctx.globalAlpha = isPreview ? 0.8 : isSelected ? 1.0 : 0.7;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    if (isPreview) ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (!isPreview && isSelected && zone.cutouts) {
+      for (let ci = 0; ci < zone.cutouts.length; ci++) {
+        const r = cutoutScreenRect(zone.cutouts[ci]);
+        if (r.w <= 0 || r.h <= 0) continue;
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.setLineDash([]);
+        const bx = r.x + r.w - 8, by = r.y + 2;
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = color;
+        ctx.font = "bold 10px monospace";
+        ctx.textBaseline = "top";
+        ctx.fillText("✕", bx, by);
+      }
+    }
+
+    if (!isPreview && w > 20 && h > 14) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = color;
+      ctx.font = `bold 11px "BM Space", monospace`;
+      ctx.textBaseline = "top";
+      ctx.fillText(`cam_${zone.id}`, Math.min(...xs) + 4, Math.min(...ys) + 3);
+    }
+    ctx.restore();
+  };
+
+  const drawCornerHandles = (zone) => {
+    const color = camZoneColor(zone.id);
+    const corners = zoneCorners(zone);
+    corners.forEach((c, i) => {
+      const w = tileToWorld(c.tx, c.tz);
+      const sc = worldToOverlay(w.wx, w.wz);
+      const isDragging =
+        camCornerDrag &&
+        cameraZones[camCornerDrag.zoneIdx] === zone &&
+        camCornerDrag.cornerIdx === i;
+      const size = isDragging ? 7 : 5;
+      ctx.save();
+      ctx.fillStyle = isDragging ? "#ffffff" : color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(sc.x - size, sc.y - size, size * 2, size * 2);
+      ctx.strokeRect(sc.x - size, sc.y - size, size * 2, size * 2);
+      ctx.restore();
+    });
+  };
+
+  const drawCamGizmo = (zone, isSelected, isDragging) => {
+    if (zone.camWX == null) return;
+    const color = camZoneColor(zone.id);
+    const sc = worldToOverlay(zone.camWX, zone.camWZ);
+    const R = isSelected ? 10 : 7;
+
+    const tx1 = Math.min(zone.x1, zone.x2);
+    const tz1 = Math.min(zone.z1, zone.z2);
+    const tx2 = Math.max(zone.x1, zone.x2);
+    const tz2 = Math.max(zone.z1, zone.z2);
+    const centerWX = ((tx1 + tx2 + 1) / 2) * ts - ox;
+    const centerWZ = ((tz1 + tz2 + 1) / 2) * ts - oz;
+    const sc2 = worldToOverlay(centerWX, centerWZ);
+
+    ctx.save();
+    ctx.globalAlpha = isDragging ? 1.0 : isSelected ? 0.95 : 0.75;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(sc.x, sc.y);
+    ctx.lineTo(sc2.x, sc2.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.lineWidth = isSelected ? 2 : 1.5;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = isDragging ? 0.5 : isSelected ? 0.35 : 0.2;
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = isDragging ? 1.0 : isSelected ? 0.95 : 0.75;
+    ctx.stroke();
+
+    ctx.globalAlpha = isDragging ? 1.0 : isSelected ? 0.9 : 0.7;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sc.x - R * 0.55, sc.y);
+    ctx.lineTo(sc.x + R * 0.55, sc.y);
+    ctx.moveTo(sc.x, sc.y - R * 0.55);
+    ctx.lineTo(sc.x, sc.y + R * 0.55);
+    ctx.stroke();
+
+    if (isSelected || R > 6) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = color;
+      ctx.font = `bold 9px "BM Space", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(`cam_${zone.id}`, sc.x, sc.y + R + 2);
+      ctx.textAlign = "left";
+    }
+    ctx.restore();
+  };
+
+  cameraZones.forEach((z, i) => {
+    const isSel = i === camZoneSelected;
+    drawZoneRect(z, false, isSel);
+    drawCamGizmo(z, isSel, camGizmoDrag?.zoneIdx === i);
+    if (isSel) drawCornerHandles(z);
+  });
+  if (previewZone) drawZoneRect(previewZone, true, false);
+
+  if (camCutoutDraw) {
+    const { startTX, startTZ, curTX, curTZ } = camCutoutDraw;
+    const cx1 = Math.min(startTX, curTX), cx2 = Math.max(startTX, curTX);
+    const cz1 = Math.min(startTZ, curTZ), cz2 = Math.max(startTZ, curTZ);
+    const tl = worldToOverlay(tileToWorld(cx1, cz1).wx, tileToWorld(cx1, cz1).wz);
+    const br = worldToOverlay(tileToWorld(cx2 + 1, cz2 + 1).wx, tileToWorld(cx2 + 1, cz2 + 1).wz);
+    const rx = Math.min(tl.x, br.x), ry = Math.min(tl.y, br.y);
+    const rw = Math.abs(br.x - tl.x), rh = Math.abs(br.y - tl.y);
+    if (rw > 0 && rh > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = "#ff3333";
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = "#ff3333";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+}
+
+function buildCamZoneList() {
+  const el = document.getElementById("cam-zone-list");
+  if (!el) return;
+  el.innerHTML = "";
+
+  if (cameraZones.length === 0) {
+    el.innerHTML = '<div style="color:var(--dim);font-size:10px;padding:4px 0">No zones yet. Enable zone mode and drag to draw.</div>';
+    return;
+  }
+
+  cameraZones.forEach((z, i) => {
+    const color = camZoneColor(z.id);
+    const isSel = i === camZoneSelected;
+
+    // ── header row ──
+    const card = document.createElement("div");
+    card.style.cssText = `border:1px solid ${isSel ? color : "var(--border)"};
+      border-radius:3px;margin-bottom:5px;overflow:hidden;`;
+
+    const header = document.createElement("div");
+    header.style.cssText = `display:flex;align-items:center;gap:6px;padding:4px 6px;
+      background:${isSel ? color + "22" : "var(--panel2)"};cursor:pointer;`;
+
+    const swatch = document.createElement("span");
+    swatch.style.cssText = `width:10px;height:10px;border-radius:1px;flex-shrink:0;background:${color}`;
+
+    const label = document.createElement("span");
+    label.style.cssText = "flex:1;font-size:10px;color:var(--text);";
+    const cutCount = z.cutouts?.length ?? 0;
+    const shapeTag = cutCount > 0 ? `  [${cutCount} cutout${cutCount > 1 ? "s" : ""}]` : "";
+    label.textContent = `cam_${z.id}  (${z.x1},${z.z1})→(${z.x2},${z.z2})${shapeTag}`;
+
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.style.cssText = "padding:1px 5px;font-size:9px;";
+    del.title = "Delete zone";
+    del.onclick = (e) => {
+      e.stopPropagation();
+      cameraZones.splice(i, 1);
+      if (camZoneSelected === i) camZoneSelected = null;
+      else if (camZoneSelected > i) camZoneSelected--;
+      buildCamZoneList();
+      redrawCamZoneOverlay();
+    };
+
+    header.appendChild(swatch);
+    header.appendChild(label);
+    header.appendChild(del);
+    header.onclick = () => {
+      camZoneSelected = isSel ? null : i;
+      buildCamZoneList();
+      redrawCamZoneOverlay();
+    };
+
+    card.appendChild(header);
+
+    if (isSel) {
+      const detail = document.createElement("div");
+      detail.style.cssText = "padding:6px 8px;display:flex;flex-direction:column;gap:5px;background:var(--bg);";
+
+      const resizeHint = document.createElement("div");
+      resizeHint.style.cssText = "font-size:9px;color:var(--dim);line-height:1.4;";
+      resizeHint.textContent = "Drag corner to resize · Shift+drag to carve cutout · Right-click ✕ to remove cutout";
+      detail.appendChild(resizeHint);
+
+      const camPos = document.createElement("div");
+      camPos.style.cssText = "font-size:10px;color:var(--dim);";
+      const posStr = z.camWX != null
+        ? `${z.camWX.toFixed(3)}, ${z.camWZ.toFixed(3)}`
+        : "not placed — use Place Camera";
+      camPos.innerHTML = `<span style="color:${color}">&#9654; origin</span> ${posStr}`;
+      detail.appendChild(camPos);
+
+      const hRow = document.createElement("div");
+      hRow.style.cssText = "display:flex;align-items:center;gap:6px;";
+      const hLbl = document.createElement("label");
+      hLbl.textContent = "height";
+      hLbl.style.cssText = "font-size:10px;color:var(--dim);min-width:58px;";
+      const hInp = document.createElement("input");
+      hInp.type = "number"; hInp.step = "0.25"; hInp.value = z.height ?? 3.0;
+      hInp.style.cssText = "width:70px;font-size:10px;";
+      hInp.oninput = () => { cameraZones[i].height = parseFloat(hInp.value) || 3.0; };
+      hRow.appendChild(hLbl); hRow.appendChild(hInp);
+      detail.appendChild(hRow);
+
+      const sRow = document.createElement("div");
+      sRow.style.cssText = "display:flex;align-items:center;gap:6px;";
+      const sLbl = document.createElement("label");
+      sLbl.textContent = "smoothing";
+      sLbl.style.cssText = "font-size:10px;color:var(--dim);min-width:58px;";
+      const sInp = document.createElement("input");
+      sInp.type = "number"; sInp.step = "0.01"; sInp.min = "0"; sInp.max = "1";
+      sInp.value = z.smoothing ?? 0.1;
+      sInp.style.cssText = "width:70px;font-size:10px;";
+      sInp.oninput = () => { cameraZones[i].smoothing = parseFloat(sInp.value) ?? 0.1; };
+      sRow.appendChild(sLbl); sRow.appendChild(sInp);
+      detail.appendChild(sRow);
+
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:5px;margin-top:2px;";
+
+      const placeBtn = document.createElement("button");
+      placeBtn.textContent = camGizmoMode ? "Place Camera ✓" : "Place Camera";
+      placeBtn.style.cssText = "flex:1;font-size:9px;" + (camGizmoMode ? `border-color:${color};color:${color};` : "");
+      placeBtn.onclick = () => {
+      camGizmoMode = !camGizmoMode;
+      if (camGizmoMode && camZoneMode) toggleCamZoneMode();
+        buildCamZoneList();
+        const canvas = document.getElementById("three-canvas");
+        canvas.style.cursor = camGizmoMode ? "cell" : "crosshair";
+      };
+      btnRow.appendChild(placeBtn);
+
+      const centerBtn = document.createElement("button");
+      centerBtn.textContent = "Drop at Center";
+      centerBtn.style.cssText = "flex:1;font-size:9px;";
+      centerBtn.title = "Drop camera at zone center";
+      centerBtn.onclick = () => {
+        const tx1 = Math.min(z.x1, z.x2);
+        const tz1 = Math.min(z.z1, z.z2);
+        const tx2 = Math.max(z.x1, z.x2);
+        const tz2 = Math.max(z.z1, z.z2);
+        const { tileSize: ts, offsetX: ox, offsetZ: oz } = params;
+        cameraZones[i].camWX = ((tx1 + tx2 + 1) / 2) * ts - ox;
+        cameraZones[i].camWZ = ((tz1 + tz2 + 1) / 2) * ts - oz;
+        camGizmoMode = false;
+        document.getElementById("three-canvas").style.cursor = "crosshair";
+        buildCamZoneList();
+        redrawCamZoneOverlay();
+      };
+      btnRow.appendChild(centerBtn);
+
+      if (z.camWX != null) {
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "Clear Camera";
+        clearBtn.style.cssText = "flex:1;font-size:9px;";
+        clearBtn.onclick = () => {
+          cameraZones[i].camWX = null;
+          cameraZones[i].camWZ = null;
+          buildCamZoneList();
+          redrawCamZoneOverlay();
+        };
+        btnRow.appendChild(clearBtn);
+      }
+      detail.appendChild(btnRow);
+
+      card.appendChild(detail);
+    }
+
+    el.appendChild(card);
+  });
+}
+
+function toggleCamZoneMode() {
+  camZoneMode = !camZoneMode;
+  if (camZoneMode && camGizmoMode) {
+  camGizmoMode = false;
+  buildCamZoneList();
+  }
+  const btn = document.getElementById("btn-cam-zone-mode");
+  btn.classList.toggle("active-btn", camZoneMode);
+  btn.textContent = camZoneMode ? "Draw Zones ✓" : "Draw Zones";
+  document.getElementById("three-canvas").style.cursor = camZoneMode ? "crosshair" : (isSpaceDown ? "grab" : "crosshair");
+  if (!camZoneMode) camZoneDraw = null;
+  redrawCamZoneOverlay();
+}
+
 // INPUT EVENTS
 function setupEvents(canvas) {
-  // Zoom (all views)
   canvas.addEventListener(
     "wheel",
     (e) => {
@@ -555,20 +1051,18 @@ function setupEvents(canvas) {
     { passive: false },
   );
 
-  // Mouse down
   canvas.addEventListener("mousedown", (e) => {
     lastMX = e.clientX;
     lastMY = e.clientY;
 
     if (isFreeLook) {
-      // Record where this interaction started so we can distinguish
-      // a short click (→ paint) from a drag (→ orbit).
+      // Defer paint/orbit decision to mousemove & mouseup
       freeDragStartX = e.clientX;
       freeDragStartY = e.clientY;
       freeDragMoved = false;
       freeDragButton = e.button;
       paintErase = e.button === 2;
-      return; // defer painting/orbiting to mousemove & mouseup
+      return;
     }
 
     if (e.button === 1 || (e.button === 0 && isSpaceDown)) {
@@ -576,15 +1070,96 @@ function setupEvents(canvas) {
       canvas.style.cursor = "grabbing";
       return;
     }
+
+    if (currentView === "top") {
+      const pt = getWorldPos(e);
+
+      if (e.button === 0) {
+        if (pt && camZoneOverlay) {
+          const HIT_RADIUS_PX = 12;
+          const rect = canvas.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+          for (let i = 0; i < cameraZones.length; i++) {
+            const z = cameraZones[i];
+            if (z.camWX == null) continue;
+            const sc = worldToOverlay(z.camWX, z.camWZ);
+            if (Math.hypot(px - sc.x, py - sc.y) < HIT_RADIUS_PX) {
+              pushZoneUndo();
+              camGizmoDrag = { zoneIdx: i };
+              camZoneSelected = i;
+              buildCamZoneList();
+              return;
+            }
+          }
+        }
+
+        if (camZoneSelected !== null) {
+          const hitIdx = hitTestZoneCorner(canvas, e, cameraZones[camZoneSelected]);
+          if (hitIdx !== -1) {
+            pushZoneUndo();
+            camCornerDrag = { zoneIdx: camZoneSelected, cornerIdx: hitIdx };
+            return;
+          }
+        }
+
+        // Must be checked BEFORE camZoneMode so shift never draws a new zone by accident.
+        if (e.shiftKey && camZoneSelected !== null && pt) {
+          const { tx, tz } = worldToTile(pt.x, pt.z);
+          camCutoutDraw = { zoneIdx: camZoneSelected, startTX: tx, startTZ: tz, curTX: tx, curTZ: tz };
+          return;
+        }
+
+        if (camGizmoMode && camZoneSelected !== null && pt) {
+          cameraZones[camZoneSelected].camWX = pt.x;
+          cameraZones[camZoneSelected].camWZ = pt.z;
+          camGizmoMode = false;
+          canvas.style.cursor = "crosshair";
+          buildCamZoneList();
+          redrawCamZoneOverlay();
+          return;
+        }
+
+        if (camZoneMode) {
+          const id = parseInt(document.getElementById("cam-zone-id").value) || 0;
+          if (pt) {
+            const { tx, tz } = worldToTile(pt.x, pt.z);
+            camZoneDraw = { id, startTX: tx, startTZ: tz, curTX: tx, curTZ: tz };
+          } else {
+            // Fallback when raycaster misses
+            const rect = canvas.getBoundingClientRect();
+            const fx = (e.clientX - rect.left) / rect.width;
+            const fy = (e.clientY - rect.top) / rect.height;
+            const wx = camera.left + fx * (camera.right - camera.left);
+            const wz = camera.top  + fy * (camera.bottom - camera.top);
+            const { tx, tz } = worldToTile(wx, wz);
+            camZoneDraw = { id, startTX: tx, startTZ: tz, curTX: tx, curTZ: tz };
+          }
+          return;
+        }
+      }
+
+      if (e.button === 2 && camZoneSelected !== null && !camZoneMode) {
+        const zone = cameraZones[camZoneSelected];
+        const ci = hitTestCutout(canvas, e, zone);
+        if (ci !== -1) {
+          pushZoneUndo();
+          zone.cutouts.splice(ci, 1);
+          buildCamZoneList();
+          redrawCamZoneOverlay();
+          return;
+        }
+      }
+    }
+
     if ((e.button === 0 || e.button === 2) && currentView === "top") {
       isPainting = true;
       paintErase = e.button === 2;
-      beginStroke(); // snapshot tileData before first paint in stroke
+      beginStroke();
       paintAt(e);
     }
   });
 
-  // Mouse move
   canvas.addEventListener("mousemove", (e) => {
     if (isFreeLook) {
       const dx = e.clientX - lastMX;
@@ -600,10 +1175,7 @@ function setupEvents(canvas) {
 
       if (e.buttons > 0 && freeDragMoved) {
         if (isSpaceDown) {
-          // Pan freeTarget in the camera's screen plane.
-          // We derive the screen-right and screen-up vectors from the
-          // current spherical angles rather than from the camera matrix
-          // (which may not be updated yet this frame).
+          // Derive screen-right/up from spherical angles (camera matrix may not be current)
           const vp = document.getElementById("viewport");
           const panScale = (viewSize * 2) / vp.clientHeight;
           const lookDir = new THREE.Vector3(
@@ -622,7 +1194,6 @@ function setupEvents(canvas) {
           freeTarget.addScaledVector(up, dy * panScale);
           updateFreeLookCamera();
         } else if (e.buttons === 1) {
-          // Left-drag → orbit
           freeTheta -= dx * 0.007;
           freePhi -= dy * 0.007;
           freePhi = Math.max(0.05, Math.min(Math.PI * 0.95, freePhi));
@@ -630,10 +1201,83 @@ function setupEvents(canvas) {
         }
       }
       hoverAt(e);
-      return; // don't run normal pan/paint logic below
+      return;
     }
 
-    // Normal (non-free-look) mousemove
+    if (camGizmoDrag && currentView === "top") {
+      const pt = getWorldPos(e);
+      if (pt) {
+        cameraZones[camGizmoDrag.zoneIdx].camWX = pt.x;
+        cameraZones[camGizmoDrag.zoneIdx].camWZ = pt.z;
+        redrawCamZoneOverlay();
+        buildCamZoneList();
+      }
+      return;
+    }
+
+    if (camCornerDrag && currentView === "top") {
+      const pt = getWorldPos(e);
+      if (pt) {
+        const zone = cameraZones[camCornerDrag.zoneIdx];
+        if (zone) {
+          if (!zone.corners) zone.corners = defaultCornersFromRect(zone.x1, zone.z1, zone.x2, zone.z2);
+          const { tx, tz } = worldToGridLine(pt.x, pt.z);
+          const i = camCornerDrag.cornerIdx;
+          zone.corners[i].tx = tx;
+          zone.corners[i].tz = tz;
+          // Slide the two adjacent corners along the shared edge to keep rect.
+          const { sameTZ, sameTX } = CORNER_NEIGHBORS[i];
+          zone.corners[sameTZ].tz = tz;
+          zone.corners[sameTX].tx = tx;
+          syncZoneBoundsFromCorners(zone);
+          redrawCamZoneOverlay();
+          buildCamZoneList();
+        }
+      }
+      hoverAt(e);
+      return;
+    }
+
+    if (camCutoutDraw && currentView === "top") {
+      const pt = getWorldPos(e);
+      if (pt) {
+        const { tx, tz } = worldToTile(pt.x, pt.z);
+        camCutoutDraw.curTX = tx;
+        camCutoutDraw.curTZ = tz;
+        redrawCamZoneOverlay();
+      }
+      hoverAt(e);
+      return;
+    }
+
+    if (camZoneDraw && currentView === "top") {
+      const pt = getWorldPos(e);
+      if (pt) {
+        const { tx, tz } = worldToTile(pt.x, pt.z);
+        camZoneDraw.curTX = tx;
+        camZoneDraw.curTZ = tz;
+        redrawCamZoneOverlay({
+          id: camZoneDraw.id,
+          x1: Math.min(camZoneDraw.startTX, tx), z1: Math.min(camZoneDraw.startTZ, tz),
+          x2: Math.max(camZoneDraw.startTX, tx), z2: Math.max(camZoneDraw.startTZ, tz),
+        });
+      }
+      hoverAt(e);
+      return;
+    }
+
+    if (
+      currentView === "top" &&
+      !isPanning &&
+      !isPainting &&
+      camZoneSelected !== null &&
+      !camZoneMode &&
+      !camGizmoMode
+    ) {
+      const hitIdx = hitTestZoneCorner(canvas, e, cameraZones[camZoneSelected]);
+      canvas.style.cursor = hitIdx !== -1 ? "move" : isSpaceDown ? "grab" : "crosshair";
+    }
+
     if (isPanning) {
       const dx = e.clientX - lastMX;
       const dy = e.clientY - lastMY;
@@ -641,8 +1285,8 @@ function setupEvents(canvas) {
       lastMY = e.clientY;
       const vp = document.getElementById("viewport");
       const asp = vp.clientWidth / vp.clientHeight;
-      panX -= (dx / vp.clientWidth) * viewSize * asp * 2;
-      panZ += (dy / vp.clientHeight) * viewSize * 2;
+      panX -= (dx / vp.clientWidth) * viewSize * asp * 1.5;
+      panZ -= (dy / vp.clientHeight) * viewSize * 1.5;
       updateCameraFrustum();
     } else if (isPainting && currentView === "top") {
       paintAt(e);
@@ -650,15 +1294,13 @@ function setupEvents(canvas) {
     hoverAt(e);
   });
 
-  // Mouse up
-  // Registered on `window` so it fires even if pointer leaves canvas.
+  // Registered on window so it fires even if pointer leaves canvas
   window.addEventListener("mouseup", (e) => {
     if (isFreeLook) {
       const totalDist = Math.hypot(
         e.clientX - freeDragStartX,
         e.clientY - freeDragStartY,
       );
-      // Short click (no meaningful drag) → paint or erase at click position
       if (
         !freeDragMoved &&
         totalDist <= 5 &&
@@ -672,7 +1314,62 @@ function setupEvents(canvas) {
       return;
     }
 
-    endStroke(); // commit stroke to undo history if anything changed
+    if (camGizmoDrag) {
+      camGizmoDrag = null;
+      buildCamZoneList();
+      redrawCamZoneOverlay();
+      return;
+    }
+
+    if (camCornerDrag) {
+      camCornerDrag = null;
+      buildCamZoneList();
+      redrawCamZoneOverlay();
+      return;
+    }
+
+    if (camCutoutDraw) {
+      const { zoneIdx, startTX, startTZ, curTX, curTZ } = camCutoutDraw;
+      camCutoutDraw = null;
+      const zone = cameraZones[zoneIdx];
+      if (zone) {
+        const cx1 = Math.min(startTX, curTX), cx2 = Math.max(startTX, curTX);
+        const cz1 = Math.min(startTZ, curTZ), cz2 = Math.max(startTZ, curTZ);
+        if (cx2 >= cx1 && cz2 >= cz1) {
+          pushZoneUndo();
+          if (!zone.cutouts) zone.cutouts = [];
+          zone.cutouts.push({ x1: cx1, z1: cz1, x2: cx2, z2: cz2 });
+        }
+      }
+      buildCamZoneList();
+      redrawCamZoneOverlay();
+      return;
+    }
+
+    if (camZoneDraw) {
+      const { id, startTX, startTZ, curTX, curTZ } = camZoneDraw;
+      const x1 = Math.min(startTX, curTX);
+      const z1 = Math.min(startTZ, curTZ);
+      const x2 = Math.max(startTX, curTX);
+      const z2 = Math.max(startTZ, curTZ);
+      if (x2 >= x1 && z2 >= z1) {
+        pushZoneUndo();
+        cameraZones.push({
+          id, x1, z1, x2, z2,
+          camWX: null, camWZ: null,
+          height: 3.0,
+          smoothing: 0.1,
+          corners: defaultCornersFromRect(x1, z1, x2, z2),
+          cutouts: [],
+        });
+        buildCamZoneList();
+      }
+      camZoneDraw = null;
+      redrawCamZoneOverlay();
+      return;
+    }
+
+    endStroke();
     isPainting = false;
     isPanning = false;
     canvas.style.cursor = isSpaceDown ? "grab" : "crosshair";
@@ -687,13 +1384,11 @@ function setupEvents(canvas) {
       canvas.style.cursor = "grab";
     }
 
-    // Undo: Ctrl+Z
     if (e.ctrlKey && e.key === "z") {
       e.preventDefault();
       undo();
       return;
     }
-    // Redo: Ctrl+Y  or  Ctrl+Shift+Z
     if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
       e.preventDefault();
       redo();
@@ -796,7 +1491,7 @@ function selectTool(k) {
 
 // PARAMETERS
 const paramInputs = document.querySelectorAll(
-  "#p-offsetx, #p-offsetz, #p-width, #p-height, #p-name, #p-scale, #p-center, #p-source-blender",
+  "#p-offsetx, #p-offsetz, #p-width, #p-height, #p-scale, #p-center, #p-source-blender",
 );
 paramInputs.forEach((input) => {
   input.addEventListener("input", () =>
@@ -820,7 +1515,7 @@ function readParamInputs() {
       1,
       parseInt(document.getElementById("p-height").value) || 12,
     ),
-    name: document.getElementById("p-name").value.trim() || "map",
+    name: currentJmapStem,
     scale: parseFloat(document.getElementById("p-scale").value) || 1.0,
     centered: document.getElementById("p-center").checked,
     source_blender: document.getElementById("p-source-blender").checked,
@@ -845,10 +1540,11 @@ function applyParams() {
   params = p;
   tileData = newTiles;
 
-  // Map dimensions may have changed → old snapshots are invalid
   undoStack = [];
   redoStack = [];
   strokeBefore = null;
+  zoneUndoStack = [];
+  zoneRedoStack = [];
   updateUndoRedoUI();
 
   rebuildGrid();
@@ -859,7 +1555,6 @@ function applyParams() {
     applyModelTransforms();
   }
 
-  // Keep free-look orbit centred on the new world centre
   if (freeTarget) {
     freeTarget.set(
       (p.width * p.tileSize) / 2 - p.offsetX,
@@ -937,6 +1632,15 @@ document.getElementById("obj-input").addEventListener("change", (e) => {
   const url = URL.createObjectURL(file);
   document.getElementById("no-model-hint").style.display = "none";
 
+  const cacheReader = new FileReader();
+  cacheReader.onload = (ev) => {
+    try {
+      localStorage.setItem("me_last_obj_text", ev.target.result);
+      localStorage.setItem("me_last_obj_name", file.name);
+    } catch (_) {}
+  };
+  cacheReader.readAsText(file);
+
   new THREE.OBJLoader().load(
     url,
     (obj) => {
@@ -956,11 +1660,8 @@ document.getElementById("obj-input").addEventListener("change", (e) => {
 function applyModelTransforms() {
   modelGroup.clear();
 
-  // Convert Blender Z-up to NDS Y-up via a proper rotation:
-  //   new_x =  old_x
-  //   new_y =  old_z  (Blender's up becomes NDS up)
-  //   new_z = -old_y  (negation preserves right-handedness)
-  // det = +1 - this is a rotation, not a reflection, so winding is preserved.
+  // Blender Z-up → NDS Y-up rotation (det=+1, winding preserved):
+  //   x'=x, y'=z, z'=-y
   const blender = params.source_blender;
   const swapMat = blender
     ? new THREE.Matrix4().set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1)
@@ -968,7 +1669,6 @@ function applyModelTransforms() {
 
   rawModelGroup.traverse((child) => {
     if (!child.isMesh) return;
-    // Clone geometry when blender flag is on so the swap is non-destructive
     const geo = blender
       ? child.geometry.clone().applyMatrix4(swapMat)
       : child.geometry;
@@ -986,12 +1686,8 @@ function applyModelTransforms() {
   modelGroup.scale.set(s, s, s);
 
   if (params.centered) {
-    // Compute the bounding box directly from the (possibly swapped) geometry
-    // position attributes. Identical to Python's compute_bounds() which runs
-    // after convert_blender_zup. We read raw attribute data so modelGroup.scale
-    // is not factored in, keeping the math consistent with the Python pipeline:
-    //   ox = (xmin+xmax)/2,  oy = ymin,  oz = (zmin+zmax)/2
-    //   position = -offset * scale
+    // Mirrors Python's compute_bounds() after convert_blender_zup.
+    // Read raw attributes so modelGroup.scale isn't factored in.
     const bbox = new THREE.Box3();
     modelGroup.traverse((c) => {
       if (c.isMesh && c._isWire) {
@@ -1024,8 +1720,11 @@ document.getElementById("jmap-input").addEventListener("change", (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
-    parseJmap(ev.target.result);
+    const text = ev.target.result;
+    currentJmapStem = file.name.replace(/\.jmap$/i, "");
+    parseJmap(text);
     e.target.value = "";
+    try { localStorage.setItem("me_last_jmap_text", text); localStorage.setItem("me_last_jmap_name", file.name); } catch (_) {}
   };
   reader.readAsText(file);
 });
@@ -1033,10 +1732,66 @@ document.getElementById("jmap-input").addEventListener("change", (e) => {
 function parseJmap(text) {
   const lines = text.split("\n");
   const dataLines = [];
+  const newCamZones = [];
   (w = 0), (h = 0);
+  let inCamZones = false;
 
   for (const line of lines) {
     const t = line.trim();
+
+    if (t === "[CAMERA_ZONES]") {
+      inCamZones = true;
+      continue;
+    }
+    if (t.startsWith("[") && t.endsWith("]") && t !== "[CAMERA_ZONES]") {
+      inCamZones = false;
+      continue;
+    }
+
+    if (inCamZones) {
+      if (!t || t.startsWith("#")) continue;
+      const parts = t.split(",").map((s) => s.trim());
+      if (parts.length >= 5) {
+        const [
+          id, x1, z1, x2, z2, wxRaw, wzRaw, hRaw, smRaw,
+          tlxRaw, tlzRaw, trxRaw, trzRaw, brxRaw, brzRaw, blxRaw, blzRaw,
+        ] = parts;
+        const camWX = wxRaw === "null" || wxRaw == null ? null : parseFloat(wxRaw);
+        const camWZ = wzRaw === "null" || wzRaw == null ? null : parseFloat(wzRaw);
+        const px1 = parseInt(x1), pz1 = parseInt(z1), px2 = parseInt(x2), pz2 = parseInt(z2);
+        const hasCorners = blzRaw != null && blzRaw !== "";
+        let cutouts = [];
+        const cutoutMarker = t.indexOf("cutouts:");
+        if (cutoutMarker !== -1) {
+          const cutoutData = t.slice(cutoutMarker + 8).trim();
+          for (const entry of cutoutData.split("|")) {
+            const nums = entry.trim().split(/\s+/).map(Number);
+            if (nums.length >= 4 && nums.every(isFinite)) {
+              cutouts.push({ x1: nums[0], z1: nums[1], x2: nums[2], z2: nums[3] });
+            }
+          }
+        }
+        newCamZones.push({
+          id: parseInt(id),
+          x1: px1, z1: pz1,
+          x2: px2, z2: pz2,
+          camWX, camWZ,
+          height:    hRaw  != null ? parseFloat(hRaw)  : 3.0,
+          smoothing: smRaw != null ? parseFloat(smRaw) : 0.1,
+          corners: hasCorners
+            ? [
+                { tx: parseFloat(tlxRaw), tz: parseFloat(tlzRaw) },
+                { tx: parseFloat(trxRaw), tz: parseFloat(trzRaw) },
+                { tx: parseFloat(brxRaw), tz: parseFloat(brzRaw) },
+                { tx: parseFloat(blxRaw), tz: parseFloat(blzRaw) },
+              ]
+            : defaultCornersFromRect(px1, pz1, px2, pz2),
+          cutouts,
+        });
+      }
+      continue;
+    }
+
     if (!t || t.startsWith("#")) {
       const sizeM = t.match(/(\d+)x(\d+)/);
       if (sizeM) {
@@ -1044,7 +1799,6 @@ function parseJmap(text) {
         h = parseInt(sizeM[2]);
       }
 
-      // Auto-create a tile def for any unknown type found in the header
       const tileMatch = t.match(
         /#\s+([a-z0-9])\s*=\s*([^()]+)\s*(?:\(([^)]+)\))?/i,
       );
@@ -1062,7 +1816,6 @@ function parseJmap(text) {
             border: baseColor,
             textColor: "#ffffff",
           };
-          // NEW: Ensure newly discovered tiles get injected into "All Tiles"
           if (TILE_CATEGORIES.length > 0) {
             TILE_CATEGORIES[0].tiles.push(code);
           }
@@ -1083,7 +1836,7 @@ function parseJmap(text) {
   document.getElementById("p-width").value = actualW;
   document.getElementById("p-height").value = actualH;
 
-  applyParams(); // also clears undo/redo, rebuilds grid, resizes minimap
+  applyParams();
   buildPalette();
 
   for (let z = 0; z < actualH; z++) {
@@ -1092,8 +1845,12 @@ function parseJmap(text) {
       if (TILE_DEFS[type] || type === "w") tileData[z * actualW + x] = type;
     }
   }
+
+  // Apply camera zones
+  cameraZones = newCamZones;
+  buildCamZoneList();
   redrawTiles();
-  alert(`Loaded .jmap: ${actualW}×${actualH} tiles`);
+  redrawCamZoneOverlay();
 }
 
 // EXPORT
@@ -1113,6 +1870,27 @@ function exportJmap() {
     for (let x = 0; x < W; x++) row.push(tileData[z * W + x] || "w");
     lines.push(row.join(", "));
   }
+
+  // Camera zones section
+  if (cameraZones.length > 0) {
+    lines.push(``);
+    lines.push(`[CAMERA_ZONES]`);
+    lines.push(`# id, x1, z1, x2, z2, cam_wx, cam_wz, height, smoothing, tlx, tlz, trx, trz, brx, brz, blx, blz [, cutouts: cx1 cz1 cx2 cz2 ...]`);
+    for (const z of cameraZones) {
+      const wx = z.camWX != null ? z.camWX.toFixed(4) : "null";
+      const wz = z.camWZ != null ? z.camWZ.toFixed(4) : "null";
+      const h  = (z.height   ?? 3.0).toFixed(4);
+      const sm = (z.smoothing ?? 0.1).toFixed(4);
+      const corners = zoneCorners(z);
+      const cornerStr = corners.map((c) => `${c.tx}, ${c.tz}`).join(", ");
+      let cutoutStr = "";
+      if (z.cutouts && z.cutouts.length > 0) {
+        cutoutStr = ", cutouts: " + z.cutouts.map((c) => `${c.x1} ${c.z1} ${c.x2} ${c.z2}`).join(" | ");
+      }
+      lines.push(`${z.id}, ${z.x1}, ${z.z1}, ${z.x2}, ${z.z2}, ${wx}, ${wz}, ${h}, ${sm}, ${cornerStr}${cutoutStr}`);
+    }
+  }
+
   downloadFile(`${name}.jmap`, lines.join("\n"), "text/plain");
 }
 
@@ -1126,19 +1904,12 @@ function downloadFile(filename, text, mime) {
 }
 
 // UNDO / REDO
-/**
- * Call at the START of any operation that might change tileData
- * (mousedown for painting, fillAll). Snapshots the current state.
- */
+// Snapshot before any tile-changing operation (call at start of stroke/fill).
 function beginStroke() {
   strokeBefore = [...tileData];
 }
 
-/**
- * Call at the END of an operation (mouseup, or after fillAll).
- * Compares current tileData against the snapshot; pushes to
- * undoStack only if something actually changed.
- */
+// Commit snapshot to undo stack if anything changed (call at end of stroke/fill).
 function endStroke() {
   if (!strokeBefore) return;
   let changed = false;
@@ -1151,13 +1922,32 @@ function endStroke() {
   if (changed) {
     undoStack.push(strokeBefore);
     redoStack = [];
-    if (undoStack.length > 50) undoStack.shift(); // cap history at 50 strokes
+    if (undoStack.length > 50) undoStack.shift();
     updateUndoRedoUI();
   }
   strokeBefore = null;
 }
 
+function snapshotZones() {
+  return JSON.parse(JSON.stringify(cameraZones));
+}
+
+function pushZoneUndo() {
+  zoneUndoStack.push(snapshotZones());
+  zoneRedoStack = [];
+  if (zoneUndoStack.length > 50) zoneUndoStack.shift();
+  updateUndoRedoUI();
+}
+
 function undo() {
+  if (zoneUndoStack.length > 0) {
+    zoneRedoStack.push(snapshotZones());
+    cameraZones = zoneUndoStack.pop();
+    buildCamZoneList();
+    redrawCamZoneOverlay();
+    updateUndoRedoUI();
+    return;
+  }
   if (undoStack.length === 0) return;
   redoStack.push([...tileData]);
   tileData = undoStack.pop();
@@ -1166,6 +1956,14 @@ function undo() {
 }
 
 function redo() {
+  if (zoneRedoStack.length > 0) {
+    zoneUndoStack.push(snapshotZones());
+    cameraZones = zoneRedoStack.pop();
+    buildCamZoneList();
+    redrawCamZoneOverlay();
+    updateUndoRedoUI();
+    return;
+  }
   if (redoStack.length === 0) return;
   undoStack.push([...tileData]);
   tileData = redoStack.pop();
@@ -1176,8 +1974,8 @@ function redo() {
 function updateUndoRedoUI() {
   const u = document.getElementById("btn-undo");
   const r = document.getElementById("btn-redo");
-  if (u) u.disabled = undoStack.length === 0;
-  if (r) r.disabled = redoStack.length === 0;
+  if (u) u.disabled = undoStack.length === 0 && zoneUndoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0 && zoneRedoStack.length === 0;
 }
 
 // MINIMAP
@@ -1186,7 +1984,6 @@ function initMinimap() {
   minimapCtx = minimapCanvas.getContext("2d");
   updateMinimapSize();
 
-  // Click on minimap, then pan the main top-down view to that world position
   minimapCanvas.addEventListener("click", (e) => {
     if (currentView !== "top" || isFreeLook) return;
     const rect = minimapCanvas.getBoundingClientRect();
@@ -1199,17 +1996,13 @@ function initMinimap() {
       offsetX: ox,
       offsetZ: oz,
     } = params;
-    // Map [0,1] minimap coordinates to world position of the clicked tile centre
     panX = mx * W * ts - ox;
     panZ = my * H * ts - oz;
     updateCameraFrustum();
   });
 }
 
-/**
- * Resize the minimap canvas to match the current map aspect ratio,
- * capped at 160×100 px. Call this after applyParams().
- */
+// Resize minimap to match map aspect ratio, capped at 160×100px.
 function updateMinimapSize() {
   if (!minimapCanvas) return;
   const { width: W, height: H } = params;
@@ -1232,13 +2025,6 @@ function updateMinimapSize() {
   redrawMinimap();
 }
 
-/**
- * Repaint the minimap canvas.
- *
- * Tile colours:
- *   'w' walkable = dark green background (#1a2a1a)
- *   anything else = the tile's `border` colour from TILE_DEFS
- */
 function redrawMinimap() {
   if (!minimapCtx || !minimapCanvas) return;
   const {
@@ -1253,11 +2039,9 @@ function redrawMinimap() {
   const cellX = mw / W;
   const cellY = mh / H;
 
-  // Background
   minimapCtx.fillStyle = "#0d0d0f";
   minimapCtx.fillRect(0, 0, mw, mh);
 
-  // Draw every tile
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const type = tileData[z * W + x];
@@ -1278,18 +2062,16 @@ function redrawMinimap() {
   }
 
   if (currentView === "top" && !isFreeLook && camera) {
-    const wx0 = camera.left; // visible world X min
-    const wx1 = camera.right; // visible world X max
-    const wz0 = -camera.top; // visible world Z min  (see docstring above)
-    const wz1 = -camera.bottom; // visible world Z max
+    const wx0 = camera.left;
+    const wx1 = camera.right;
+    const wz0 = -camera.top;
+    const wz1 = -camera.bottom;
 
-    // → tile space
     const tx0 = (wx0 + ox) / ts;
     const tx1 = (wx1 + ox) / ts;
     const tz0 = (wz0 + oz) / ts;
     const tz1 = (wz1 + oz) / ts;
 
-    // minimap pixels
     const px0 = tx0 * cellX;
     const py0 = tz0 * cellY;
     const pw = (tx1 - tx0) * cellX;
@@ -1328,10 +2110,9 @@ function initTooltips() {
   });
 }
 
-// BOOT
 async function init() {
   await loadTileDefinitions();
-  buildCategorySelect(); // Call this immediately after loading definitions
+  buildCategorySelect();
   buildPalette();
 
   if (TILE_DEFS["w"]) {
@@ -1345,7 +2126,51 @@ async function init() {
   updateMapInfo();
   initThree();
   initMinimap();
+  initCamZoneOverlay();
+  buildCamZoneList();
+
+  const camIdSel = document.getElementById("cam-zone-id");
+  const camIdSwatch = document.getElementById("cam-zone-id-swatch");
+  if (camIdSel && camIdSwatch) {
+    camIdSel.addEventListener("change", () => {
+      camIdSwatch.style.background = camZoneColor(parseInt(camIdSel.value));
+    });
+  }
+
   initTooltips();
+  // Restore last session; try/catch so corrupt localStorage can't prevent boot
+  try {
+    const _lastJmap = localStorage.getItem("me_last_jmap_text");
+    const _lastJmapName = localStorage.getItem("me_last_jmap_name");
+    if (_lastJmap) {
+      if (_lastJmapName) currentJmapStem = _lastJmapName.replace(/\.jmap$/i, "");
+      parseJmap(_lastJmap);
+    }
+  } catch (e) {
+    console.warn("Failed to restore last jmap from localStorage:", e);
+    localStorage.removeItem("me_last_jmap_text");
+    localStorage.removeItem("me_last_jmap_name");
+  }
+  try {
+    const _lastObj = localStorage.getItem("me_last_obj_text");
+    if (_lastObj) loadObjFromText(_lastObj);
+  } catch (e) {
+    console.warn("Failed to restore last obj:", e);
+    localStorage.removeItem("me_last_obj_text");
+    localStorage.removeItem("me_last_obj_name");
+  }
+}
+
+function loadObjFromText(objText) {
+  const blob = new Blob([objText], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  document.getElementById("no-model-hint").style.display = "none";
+  new THREE.OBJLoader().load(
+    url,
+    (obj) => { rawModelGroup = obj; applyModelTransforms(); URL.revokeObjectURL(url); },
+    undefined,
+    (err) => { console.warn("Failed to reload .obj:", err); URL.revokeObjectURL(url); }
+  );
 }
 
 init();

@@ -172,3 +172,10 @@ w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, c, w, w, w, w,
 w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c
 w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c
 w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c, c
+
+[CAMERA_ZONES]
+# id, x1, z1, x2, z2, cam_wx, cam_wz, height, smoothing, tlx, tlz, trx, trz, brx, brz, blx, blz [, cutouts: cx1 cz1 cx2 cz2 ...]
+0, 36, 61, 71, 111, 0.2690, 1.8950, 0.6000, 0.0600, 36, 61, 72, 61, 72, 112, 36, 112, cutouts: 36 96 51 111 | 36 92 44 95
+1, 17, 61, 51, 111, -0.9190, 1.8950, 0.6000, 0.0600, 17, 61, 52, 61, 52, 112, 17, 112, cutouts: 36 61 51 91 | 45 92 51 95
+2, 37, 19, 71, 60, 0.3310, -1.0430, 0.6000, 0.0600, 37, 19, 72, 19, 72, 61, 37, 61
+3, 11, 11, 36, 60, -1.6060, -1.2930, 0.6000, 0.0600, 11, 11, 37, 11, 37, 61, 11, 61

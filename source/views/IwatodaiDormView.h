@@ -3,9 +3,12 @@
 // controllers
 #include "controllers/CharacterController.h"
 #include "controllers/DialogueController.h"
+#include "controllers/FixedCameraStrategy.h"
 #include "controllers/ICameraStrategy.h"
 // environments
 #include "environments/iwatodai_dorm_floor_1.h"
+// maps
+#include "maps/iwatodai_dorm_floor_1.h"
 // battle-related
 #include "./battleActions/BattleParticipant.h"
 #include "./battleActions/BattleStartCondition.h"
@@ -82,6 +85,12 @@ class IwatodaiDormView : public BaseView3D
     DialogueController dialogueCtrl;
 
     bool isBattleMenuActive = false;
+
+    int currentZoneId = -1;
+    int pendingZoneId = -1;
+    FixedCameraStrategy* movementStrategy;
+    ICameraStrategy* buildStrategyForZone(const cam_zone_t& zone);
+    void updateCameraZone(u32 keys);
 
     void setMusic();
 };

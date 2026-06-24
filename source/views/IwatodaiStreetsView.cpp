@@ -46,9 +46,6 @@ void IwatodaiStreetsView::setupEnvironment()
         fatBasePath + "environments/iwatodai_streets/f007_009_28", envTextures[IWATODAI_STREETS_TEX_F007_009_28]);
     bitmaps[IWATODAI_STREETS_TEX_F007_009_24] = loadEnvironmentBitmap(
         fatBasePath + "environments/iwatodai_streets/f007_009_24", envTextures[IWATODAI_STREETS_TEX_F007_009_24]);
-    bitmaps[IWATODAI_STREETS_TEX_F007_009_INFLOOR] =
-        loadEnvironmentBitmap(fatBasePath + "environments/iwatodai_streets/f007_009_infloor",
-                              envTextures[IWATODAI_STREETS_TEX_F007_009_INFLOOR]);
     bitmaps[IWATODAI_STREETS_TEX_F007_009_09] = loadEnvironmentBitmap(
         fatBasePath + "environments/iwatodai_streets/f007_009_09", envTextures[IWATODAI_STREETS_TEX_F007_009_09]);
     bitmaps[IWATODAI_STREETS_TEX_F007_009_11] = loadEnvironmentBitmap(

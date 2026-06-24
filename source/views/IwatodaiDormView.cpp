@@ -12,8 +12,6 @@
 #include "models/makoto.h"
 // dialogue
 #include "dialogue/demo_dialogue.h"
-// maps
-#include "maps/iwatodai_dorm_floor_1.h"
 
 const unsigned int* loadEnvironmentBitmap(const std::string& path, GraphicAsset& asset)
 {
@@ -138,6 +136,78 @@ void IwatodaiDormView::setupEnvironment()
     }
 }
 
+ICameraStrategy* IwatodaiDormView::buildStrategyForZone(const cam_zone_t& zone)
+{
+    Point2D<float> origin(zone.cam_x, zone.cam_z);
+    return new FixedCameraStrategy(origin, zone.height, zone.smoothing, movementStrategy->getTarget());
+}
+
+void IwatodaiDormView::updateCameraZone(u32 keys)
+{
+    const u32 movementKeys = KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT;
+
+    // if we're waiting on a pending zone, commit it once all movement keys are released
+    if (pendingZoneId >= 0)
+    {
+        if ((keys & movementKeys) == 0)
+        {
+            const cam_zone_t& zone = iwatodai_dorm_floor_1_cam_zones[pendingZoneId];
+            delete movementStrategy;
+            movementStrategy = new FixedCameraStrategy(
+                Point2D<float>(zone.cam_x, zone.cam_z), zone.height, zone.smoothing,
+                playerCtrl->characterTranslate);
+            playerCtrl->cameraStrategy = movementStrategy;
+            pendingZoneId = -1;
+        }
+        return;
+    }
+
+    CharacterPosition charPos = playerCtrl->isCharacterAt();
+    int tileX = (int)((charPos.x + worldOffsetX) / tileSize);
+    int tileZ = (int)((charPos.z + worldOffsetZ) / tileSize);
+
+    if (currentZoneId >= 0)
+    {
+        const cam_zone_t& current = iwatodai_dorm_floor_1_cam_zones[currentZoneId];
+        if (tileX >= current.x1 - 1 && tileX <= current.x2 + 1 &&
+            tileZ >= current.z1 - 1 && tileZ <= current.z2 + 1)
+        {
+            return;
+        }
+    }
+
+    for (int i = 0; i < IWATODAI_DORM_FLOOR_1_CAM_ZONE_COUNT; i++)
+    {
+        if (i == currentZoneId)
+            continue;
+
+        const cam_zone_t& zone = iwatodai_dorm_floor_1_cam_zones[i];
+
+        if (tileX < zone.x1 + 1 || tileX > zone.x2 - 1 || tileZ < zone.z1 + 1 || tileZ > zone.z2 - 1)
+            continue;
+
+        bool inCutout = false;
+        for (int c = 0; c < zone.cutout_count; c++)
+        {
+            const cam_zone_cutout_t& cut = zone.cutouts[c];
+            if (tileX >= cut.x1 && tileX <= cut.x2 && tileZ >= cut.z1 && tileZ <= cut.z2)
+            {
+                inCutout = true;
+                break;
+            }
+        }
+        if (inCutout)
+            continue;
+
+        currentZoneId = i;
+        ICameraStrategy* newStrategy = buildStrategyForZone(zone);
+        delete cameraStrategy;
+        cameraStrategy = newStrategy;
+        pendingZoneId = i;
+        return;
+    }
+}
+
 void IwatodaiDormView::init()
 {
     BaseView3D::init();
@@ -164,7 +234,12 @@ void IwatodaiDormView::init()
     bgUpdate();
 
     // setup player controller
-    cameraStrategy = new FixedCameraStrategy(fixedCameraOrigin, fixedCameraHeight, fixedCameraSmoothing, characterTranslate);
+    const cam_zone_t& zone0 = iwatodai_dorm_floor_1_cam_zones[0];
+    movementStrategy = new FixedCameraStrategy(
+        Point2D<float>(zone0.cam_x, zone0.cam_z), zone0.height, zone0.smoothing, characterTranslate);
+    cameraStrategy = new FixedCameraStrategy(
+        Point2D<float>(zone0.cam_x, zone0.cam_z), zone0.height, zone0.smoothing, characterTranslate);
+    currentZoneId = 0;
 
     playerCtrl = new CharacterController(IWATODAI_DORM_FLOOR_1_MAP_WIDTH,
                                          IWATODAI_DORM_FLOOR_1_MAP_HEIGHT,
@@ -179,7 +254,7 @@ void IwatodaiDormView::init()
                                          height,
                                          characterTranslate,
                                          characterFacingAngle,
-                                         cameraStrategy);
+                                         movementStrategy);
 
     // setup music
     setMusic();
@@ -350,7 +425,10 @@ ViewState IwatodaiDormView::update()
         }
 
         // move character
-        camPos = playerCtrl->update(keys);
+        updateCameraZone(keys);
+        playerCtrl->update(keys);
+        CharacterFrameState frameState{playerCtrl->characterTranslate, playerCtrl->angle, playerCtrl->height};
+        camPos = cameraStrategy->update(frameState);
 
         // start pause menu
         if (pressed & KEY_START)
@@ -471,6 +549,8 @@ void IwatodaiDormView::cleanup()
     // cleanup controllers
     delete playerCtrl;
     playerCtrl = NULL;
+    delete movementStrategy;
+    movementStrategy = NULL;
     delete cameraStrategy;
     cameraStrategy = NULL;
 }

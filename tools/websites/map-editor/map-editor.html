@@ -98,13 +98,7 @@
             >
             <input type="number" id="p-height" value="0" step="1" min="1" />
           </div>
-          <div class="row">
-            <label
-              data-tip="Base name used for the exported .jmap filename and map header comment."
-              >mapName</label
-            >
-            <input type="text" id="p-name" value="map" />
-          </div>
+
           <div class="sep"></div>
           <div class="row">
             <label
@@ -126,6 +120,13 @@
               >Source: Blender</label
             >
             <input type="checkbox" id="p-source-blender" />
+          </div>
+          <div class="row">
+            <label
+              data-tip="Rotate the 3D model around the Y axis (degrees). Use 90, -90, or 180 to correct orientation mismatches between the OBJ export and the tile grid."
+              >Model Rotation</label
+            >
+            <input type="number" id="p-model-rotation" value="0" step="90" />
           </div>
           <div class="sep"></div>
           <div class="row">
@@ -303,6 +304,40 @@
               ⊙ Center Pan/Zoom
             </button>
           </div>
+        </div>
+
+        <!-- CAMERA ZONES -->
+        <div class="section">
+          <div class="section-title">Camera Zones</div>
+          <p class="hint" style="margin-bottom:8px">
+            Draw rectangular regions that trigger a different camera when entered. Select a zone, then drag its corner handles on the map to resize it. Hold Shift while dragging a corner to move only that corner and carve an indent. Zones are saved in the .jmap and emitted as a C struct array.
+          </p>
+          <div class="row" style="margin-bottom:6px">
+            <label data-tip="Zone ID (0-9). Each ID maps to a cam_zone_id enum value in C.">Zone ID</label>
+            <select id="cam-zone-id" style="width:60px;flex:none">
+              <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+              <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+            </select>
+            <span id="cam-zone-id-swatch" style="width:12px;height:12px;border-radius:2px;background:#e74c3c;flex-shrink:0"></span>
+          </div>
+          <div class="row" style="margin-bottom:8px">
+            <button
+              id="btn-cam-zone-mode"
+              data-tip="Enable zone draw mode: drag a rectangle on the top-down view to place a camera zone. Right-click a zone in the list to delete it."
+              onclick="toggleCamZoneMode()"
+              style="flex:1"
+            >
+              Draw Zones
+            </button>
+            <button
+              data-tip="Remove all camera zones from this map."
+              onclick="cameraZones=[];camZoneSelected=null;buildCamZoneList();redrawCamZoneOverlay();"
+              style="flex:1"
+            >
+              Clear All
+            </button>
+          </div>
+          <div id="cam-zone-list"></div>
         </div>
 
         <!-- EXPORT -->
