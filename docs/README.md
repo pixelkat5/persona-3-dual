@@ -62,29 +62,36 @@ Requires [TWiLight Menu++](https://wiki.ds-homebrew.com/twilightmenu/) with DLDI
 5. Launch the game through TWiLight Menu++ as normal.
 ---
 
-## Developer & Artist Setup
+## Team Onboarding & Setup
 See [ONBOARDING.md](ONBOARDING.md)
 
 ---
 
 ## Roadmap
-
-See the [Project Board](https://github.com/orgs/p3d-project/projects/1) for current progress and open issues.
-
-### Milestone 1: The Initial Demo
-
-**Goal:** Lay the foundation of the game. Focused on implementing core engine features, basic systems, and getting our workflow documented. The grand finale of this phase is a polished promotional video showcasing our progress to try and recruit volunteers to the team.
-
-**Key Deliverables:**
-
-* **Environments & Models:** Getting characters moving around Iwatodai Dorm, Paulownia Mall, and other environment models, with optimized models. Initial implementation of the initial move-in intro sequence.
-* **User Interface:** Building out the foundational UI, including the top-corner calendar display, dialogue boxes with custom backgrounds, and a clean console-style battle menu. We are also laying the groundwork for FEMC palette swaps.
-* **Under the Hood:** Setting up dummy zones for battle and dialogue testing, adding basic save data functionality, implementing asset streaming, and finalizing the PersonaUniversalToolchain.
+- See the [Project Board](https://github.com/orgs/p3d-project/projects/1) for current progress and open issues.
+- See the [P3D Roadmap](https://docs.google.com/document/d/1VUxY2xVGtKzGWCES0VeZ_-vMpKSifB5vTW2ZkXJMPJM/edit?usp=sharing) document for progress on Milestones
 
 ---
 
 ![Alt](https://repobeats.axiom.co/api/embed/7e6123f89c4c8a46b04e80b52694693203c2cf9d.svg "Repobeats analytics image")
 
 ---
+## Legal
+> Disclaimer: This section is inspired by the [FEMC Reloaded project](https://github.com/MadMax1960/Femc-Reloaded-Project)
 
-*This is a fan project and is not affiliated with or endorsed by Atlus or Sega. We (the team & the project) will not accept any monetary donations or funding for this project, nor will we make money from this project. We (the team & the project) do not enable, condone, or endorce piracy.*
+**TLDR**: This is a fan project and is not affiliated with or endorsed by Atlus or Sega. We (the team & the project) will not accept any monetary donations or funding for this project, nor will we make money from this project. We (the team & the project) do not enable, condone, or endorce piracy.
+
+### Intellectual Property & Copyright
+This game is a labor of love created to celebrate Persona 3 and share our collective creativity within the fan community, not to infringe on the rights of the original creators.
+
+- **ⓒ Atlus ⓒ Sega. All Rights Reserved.** A large number of game assets, including but not limited to 3D models, 2D artwork, music, sound effects, character designs, logos, and the Persona trademark, are the exclusive intellectual property of Atlus and Sega (or their respective copyright holders).
+- **Not for Sale**: This project does not, and will never, go up for sale. Nothing monetary is being sought from it.
+
+### Codebase License
+While the game assets belong to their respective copyright holders, the custom source code written for this game engine is licensed under the Creative Commons **Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0).**
+
+The open-source license applied to this codebase **does not** extend to any copyrighted assets or intellectual property owned by Atlus or Sega. For the engine code itself, the license means:
+
+- **Attribution (BY)**: You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
+- **NonCommercial (NC)**: You may not utilize this codebase for commercial purposes.
+- **ShareAlike (SA)**: If you remix, transform, or build upon the engine code, you must distribute your contributions under the same license as the original.
