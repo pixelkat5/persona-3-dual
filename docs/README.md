@@ -63,7 +63,7 @@ Requires [TWiLight Menu++](https://wiki.ds-homebrew.com/twilightmenu/) with DLDI
 ---
 
 ## Team Onboarding & Setup
-See [ONBOARDING.md](ONBOARDING.md)
+See [ONBOARDING.md](https://p3dual.com/docs/onboarding/)
 
 ---
 

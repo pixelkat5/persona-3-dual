@@ -29,7 +29,7 @@ class MainMenuComponent : public BaseMenu
     MenuOption settingOptions[SETTING_OPTIONS] = {
         {"Change Intro Video", -1, MENU_BIND(MainMenuComponent, settingOptionSelected)},
         {"Toggle FEMC Mode", -1, MENU_BIND(MainMenuComponent, settingOptionSelected)},
-        {"v0.5", -1, nullptr},
+        {"v0.6", -1, nullptr},
     };
 
     MenuOption settingIntroOptions[SETTING_INTRO_OPTIONS] = {
