@@ -22,6 +22,14 @@ VALID_TEX_SIZES = {8, 16, 32, 64, 128, 256, 512, 1024}
 # Banks A+B+D = 3 * 128KB = 384KB (C is reserved for sub-BG)
 NDS_VRAM_BUDGET = 384 * 1024
 
+# Marks the start/end of a single environment's generated block inside
+# environmentDb.cpp, so re-running the tool updates that block in place
+# instead of duplicating or clobbering other environments in the file.
+BLOCK_RE = re.compile(
+    r"// === ENVIRONMENT: (\w+) BEGIN ===.*?// === ENVIRONMENT: \1 END ===\n?",
+    re.DOTALL,
+)
+
 
 def _format_cpp_h_files(paths: list[str]) -> None:
     clang_format = shutil.which("clang-format")
@@ -38,6 +46,12 @@ def _format_cpp_h_files(paths: list[str]) -> None:
 
 def sanitize(name):
     return re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+
+def escape_c_string(s):
+    if not s:
+        return ""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def floattov16(f):
@@ -86,6 +100,7 @@ def parse_obj(obj_path):
     vertices, texcoords, groups = [], [], []
     current_mat, current_faces = "__no_material__", []
     is_billboard = False
+    group_name = None
 
     def flush():
         if current_faces:
@@ -94,6 +109,9 @@ def parse_obj(obj_path):
                     "material": current_mat,
                     "faces": list(current_faces),
                     "is_billboard": is_billboard,
+                    # Raw "o"/"g" name in effect when these faces were parsed.
+                    # Used as BillboardData::name for debugging at runtime.
+                    "name": group_name,
                 }
             )
 
@@ -109,6 +127,7 @@ def parse_obj(obj_path):
                 texcoords.append((float(parts[1]), float(parts[2])))
             elif tok in ("o", "g"):
                 flush()
+                group_name = parts[1] if len(parts) > 1 else None
                 is_billboard = parts[1].startswith("BB_") if len(parts) > 1 else False
                 current_faces = []
             elif tok == "usemtl":
@@ -292,6 +311,153 @@ def check_vram_budget(dl_groups, tex_paths, bpp=2, budget=NDS_VRAM_BUDGET):
     return ok
 
 
+def find_project_root(output_dir, explicit=None):
+    """
+    Locate the project root (the directory containing both 'source' and 'data'),
+    so environmentDb.cpp can be found/written at <root>/source/data/environmentDb.cpp
+    regardless of where output_dir happens to be.
+
+    Preference order:
+    1. `explicit` (config["project_dir"], if the caller knows it)
+    2. Walk upward from output_dir looking for a dir with both source/ and data/
+    3. Fall back to assuming the fixed convention
+       <root>/data/environments/<env> == output_dir
+    """
+    if explicit:
+        return os.path.abspath(explicit)
+
+    cur = os.path.abspath(output_dir)
+    while True:
+        if os.path.isdir(os.path.join(cur, "source")) and os.path.isdir(
+            os.path.join(cur, "data")
+        ):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+
+    # Fallback: <root>/data/environments/<env> -> strip 3 levels
+    guess = os.path.abspath(os.path.join(output_dir, "..", "..", ".."))
+    return guess
+
+
+def generate_entry_block(
+    base_name,
+    dl_groups,
+    billboards,
+    world_offset_x,
+    world_offset_z,
+    world_width,
+    world_depth,
+    bin_runtime_path,
+):
+    """Build the self-contained '// === ENVIRONMENT: <n> ... ===' text block
+    that gets inserted into environmentDb.cpp for this environment, matching:
+
+        struct EnvironmentTexture { const char* name; int width; int height;
+                                     const unsigned int* bitmap; };
+        struct BillboardData { const char* name; v16 x, y, z;
+                                v16 halfWidth; v16 halfHeight; int texSlot;
+                                short u0, v0; short u1, v1; };
+        struct EnvironmentDbEntry { const char* name; const char* binaryFile;
+                                     float worldOffsetX; float worldOffsetZ;
+                                     float worldWidth; float worldDepth;
+                                     int textureCount; const EnvironmentTexture* textures;
+                                     int billboardCount; const BillboardData* billboards; };
+
+    `bitmap` is left NULL here; the loader/GRIT pipeline fills it in at runtime.
+    """
+    lines = [f"// === ENVIRONMENT: {base_name} BEGIN ==="]
+
+    # EnvironmentTexture[]
+    n_tex = len(dl_groups)
+    textures_symbol = "NULL"
+    if n_tex > 0:
+        textures_symbol = f"{base_name}_textures"
+        lines.append(f"static const EnvironmentTexture {textures_symbol}[{n_tex}] = {{")
+        for tex_key, _, tw, th in dl_groups:
+            if tex_key == "__no_texture__":
+                lines.append(f"    {{ NULL, {tw or 0}, {th or 0}, NULL }},")
+            else:
+                tex_base = sanitize(os.path.splitext(tex_key)[0])
+                lines.append(
+                    f'    {{ "{tex_base}.img.bin", {tw}, {th}, NULL }}, // {tex_key}'
+                )
+        lines.append("};")
+        lines.append("")
+
+    # BillboardData[]
+    n_bb = len(billboards)
+    billboards_symbol = "NULL"
+    if n_bb > 0:
+        billboards_symbol = f"{base_name}_billboards"
+        lines.append(f"static const BillboardData {billboards_symbol}[{n_bb}] = {{")
+        for b in billboards:
+            name = escape_c_string(b.get("name") or "")
+            lines.append(
+                f'    {{ "{name}", {to_signed_v16(b["cx"])}, {to_signed_v16(b["cy"])}, {to_signed_v16(b["cz"])}, '
+                f'{to_signed_v16(b["hw"])}, {to_signed_v16(b["hh"])}, {b["slot"]}, '
+                f'{b["u0_16"]}, {b["v0_16"]}, {b["u1_16"]}, {b["v1_16"]} }},'
+            )
+        lines.append("};")
+        lines.append("")
+
+    # EnvironmentDbEntry
+    lines.append(f"const EnvironmentDbEntry {base_name}EnvironmentDbEntry = {{")
+    lines.append(f'    "{base_name}",')
+    lines.append(f'    "{bin_runtime_path}",')
+    lines.append(
+        f"    {world_offset_x:.6f}f, {world_offset_z:.6f}f, "
+        f"{world_width:.6f}f, {world_depth:.6f}f,"
+    )
+    lines.append(f"    {n_tex}, {textures_symbol},")
+    lines.append(f"    {n_bb}, {billboards_symbol},")
+    lines.append("};")
+    lines.append(f"// === ENVIRONMENT: {base_name} END ===")
+    return "\n".join(lines) + "\n"
+
+
+def update_environment_db(db_path, base_name, new_block, struct_header):
+    """Insert or replace this environment's block in environmentDb.cpp, then
+    regenerate the g_environmentDb[] lookup array covering every block found."""
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+    blocks = {}
+    order = []
+
+    if os.path.exists(db_path):
+        with open(db_path, "r") as f:
+            content = f.read()
+        for m in BLOCK_RE.finditer(content):
+            name = m.group(1)
+            blocks[name] = m.group(0).rstrip("\n")
+            order.append(name)
+
+    if base_name not in blocks:
+        order.append(base_name)
+    blocks[base_name] = new_block.rstrip("\n")
+
+    with open(db_path, "w") as f:
+        f.write("// Auto-generated by obj2environment.py\n")
+        f.write(
+            "// DO NOT EDIT the ENVIRONMENT blocks by hand - regenerate from source .obj files.\n"
+        )
+        f.write(f'#include "{struct_header}"\n\n')
+
+        for name in order:
+            f.write(blocks[name])
+            f.write("\n\n")
+
+        f.write(f"const EnvironmentDbEntry* g_environmentDb[{len(order)}] = {{\n")
+        for name in order:
+            f.write(f"    &{name}EnvironmentDbEntry,\n")
+        f.write("};\n\n")
+        f.write(f"const int g_environmentDbCount = {len(order)};\n")
+
+    _format_cpp_h_files([db_path])
+
+
 def convert(obj_path, output_dir, config):
     scale = config.get("scale", None)
     target_size = config.get("target_size", 4.0)
@@ -300,15 +466,6 @@ def convert(obj_path, output_dir, config):
         center = False
     blender_source = config.get("source_blender", False)
     max_tex_size = config.get("max_tex_size", None)
-
-    rgba_all = config.get("rgba", False)
-    raw_rgba_list = config.get("rgba_list", [])
-    if isinstance(raw_rgba_list, str):
-        rgba_list = [x.strip() for x in raw_rgba_list.split(",") if x.strip()]
-    elif isinstance(raw_rgba_list, list):
-        rgba_list = [str(x).strip() for x in raw_rgba_list]
-    else:
-        rgba_list = []
 
     vertex_color = config.get("color", [255, 255, 255])
     if isinstance(vertex_color, list) and len(vertex_color) == 3:
@@ -327,6 +484,14 @@ def convert(obj_path, output_dir, config):
     obj_path = os.path.abspath(obj_path)
     output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
+
+    project_root = find_project_root(output_dir, config.get("project_dir"))
+    db_path = os.path.abspath(
+        config.get("db_path")
+        or os.path.join(project_root, "source", "data", "environmentDb.cpp")
+    )
+    struct_header = config.get("struct_header", "data/environmentDb.h")
+    bin_runtime_prefix = config.get("bin_runtime_prefix", "") or ""
 
     obj_dir = os.path.dirname(obj_path)
     base_name = sanitize(os.path.splitext(os.path.basename(obj_path))[0])
@@ -410,6 +575,7 @@ def convert(obj_path, output_dir, config):
                     v_min, v_max = v_min_raw, v_max_raw
             billboards.append(
                 {
+                    "name": (g.get("name") or "").removeprefix("BB_") or tex_key,
                     "cx": cx,
                     "cy": cy,
                     "cz": cz,
@@ -477,9 +643,7 @@ def convert(obj_path, output_dir, config):
     billboards.sort(key=lambda b: b["slot"])
 
     n = len(dl_groups)
-    safe_n = max(n, 1)
     bin_path = os.path.join(output_dir, f"{base_name}.bin")
-    header_path = os.path.join(output_dir, f"{base_name}.h")
     tex_list_path = os.path.join(output_dir, f"{base_name}_textures.txt")
 
     with open(bin_path, "wb") as f:
@@ -491,217 +655,6 @@ def convert(obj_path, output_dir, config):
                 f.write(w)
     print(f"Written: {base_name}.bin")
 
-    with open(header_path, "w") as h:
-        h.write("#pragma once\n// Auto-generated by obj2environment.py\n")
-        h.write(f"// Source: {os.path.basename(obj_path)}\n")
-        h.write(
-            f"// Scale: {scale:.6f}  Centred: {center}  max_tex_size: {max_tex_size}\n"
-        )
-        h.write("// DO NOT EDIT - regenerate from source.\n\n")
-        h.write(
-            "#include <math.h>\n#include <nds.h>\n#include <stdio.h>\n#include <stdlib.h>\n\n"
-        )
-
-        h.write("// World bounds\n")
-        h.write(
-            f"#define {base_name.upper()}_WORLD_OFFSET_X {world_offset_x:.6f}f\n"
-            f"#define {base_name.upper()}_WORLD_OFFSET_Z {world_offset_z:.6f}f\n"
-            f"#define {base_name.upper()}_WORLD_WIDTH    {world_width:.6f}f\n"
-            f"#define {base_name.upper()}_WORLD_DEPTH    {world_depth:.6f}f\n\n"
-        )
-
-        h.write(f"enum {base_name}_TexSlot\n{{\n")
-        for i, (tex_key, _, _, _) in enumerate(dl_groups):
-            h.write(
-                f"    {base_name.upper()}_TEX_{sanitize(os.path.splitext(tex_key)[0]).upper()} = {i},\n"
-            )
-        h.write(f"    {base_name.upper()}_TEX_COUNT = {n}\n}};\n\n")
-
-        h.write(f"struct {base_name}_BillboardData\n{{\n")
-        h.write("    v16 x, y, z;\n    v16 halfWidth, halfHeight;\n")
-        h.write("    int texSlot;\n    short u0, v0, u1, v1;\n};\n\n")
-
-        h.write(f"class {base_name}_Environment\n{{\npublic:\n")
-        h.write(f"    u32* displayLists[{safe_n}];\n")
-        h.write(f"    u32 dlSizes[{safe_n}];\n")
-        h.write(f"    int textureIDs[{safe_n}];\n\n")
-        h.write(f"    static const int BILLBOARD_COUNT = {len(billboards)};\n")
-
-        if billboards:
-            h.write(
-                f"    const {base_name}_BillboardData BILLBOARDS[{len(billboards)}] = {{\n"
-            )
-            for b in billboards:
-                h.write(
-                    f"        {{ {to_signed_v16(b['cx'])}, {to_signed_v16(b['cy'])}, "
-                    f"{to_signed_v16(b['cz'])}, "
-                    f"{to_signed_v16(b['hw'])}, {to_signed_v16(b['hh'])}, {b['slot']}, "
-                    f"{b['u0_16']}, {b['v0_16']}, {b['u1_16']}, {b['v1_16']} }},\n"
-                )
-            h.write("    };\n\n")
-        else:
-            h.write(f"    const {base_name}_BillboardData* BILLBOARDS = NULL;\n\n")
-
-        h.write(f"    {base_name}_Environment() {{\n")
-        h.write(f"        for (int i = 0; i < {safe_n}; i++) {{\n")
-        h.write(
-            "            displayLists[i] = NULL; dlSizes[i] = 0; textureIDs[i] = 0;\n"
-        )
-        h.write("        }\n    }\n\n")
-
-        # load()
-        h.write(
-            f"    bool load(const char* filepath, const unsigned int* bitmaps[{safe_n}]) {{\n"
-        )
-        if n > 0:
-            h.write('        FILE* file = fopen(filepath, "rb");\n')
-            h.write("        if (!file) return false;\n\n")
-            h.write("        char magic[4];\n")
-            h.write("        fread(magic, 1, 4, file);\n")
-            h.write(
-                "        if (magic[0]!='E'||magic[1]!='N'||magic[2]!='V'||magic[3]!='1') {\n"
-            )
-            h.write("            fclose(file); return false;\n        }\n\n")
-            h.write("        u32 groupCount;\n")
-            h.write("        fread(&groupCount, sizeof(u32), 1, file);\n")
-            h.write(
-                f"        if (groupCount != {n}) {{ fclose(file); return false; }}\n\n"
-            )
-            h.write("        for (u32 i = 0; i < groupCount; i++) {\n")
-            h.write("            fread(&dlSizes[i], sizeof(u32), 1, file);\n")
-            h.write(
-                "            displayLists[i] = (u32*)malloc((dlSizes[i] + 1) * sizeof(u32));\n"
-            )
-            h.write("            displayLists[i][0] = dlSizes[i];\n")
-            h.write("            if (dlSizes[i] > 0)\n")
-            h.write(
-                "                fread(&displayLists[i][1], sizeof(u32), dlSizes[i], file);\n"
-            )
-            h.write("        }\n")
-            h.write("        fclose(file);\n\n")
-
-            for i, (tex_key, _, tw, th) in enumerate(dl_groups):
-                nw = f"TEXTURE_SIZE_{tw}" if tw else "TEXTURE_SIZE_8"
-                nh_s = f"TEXTURE_SIZE_{th}" if th else "TEXTURE_SIZE_8"
-                is_rgba = rgba_all or any(req in tex_key for req in rgba_list)
-                gl_format = "GL_RGBA" if is_rgba else "GL_RGB"
-                h.write(f"        if (bitmaps[{i}]) {{\n")
-                h.write(f"            glGenTextures(1, &textureIDs[{i}]);\n")
-                h.write(f"            glBindTexture(GL_TEXTURE_2D, textureIDs[{i}]);\n")
-                h.write(
-                    f"            glTexImage2D(GL_TEXTURE_2D, 0, {gl_format}, {nw}, {nh_s}, 0,\n"
-                )
-                h.write(
-                    "                TEXGEN_TEXCOORD | GL_TEXTURE_WRAP_S | GL_TEXTURE_WRAP_T,\n"
-                )
-                h.write(f"                bitmaps[{i}]);\n")
-                h.write("        }\n")
-
-            h.write("        return true;\n")
-        else:
-            h.write("        return true;\n")
-        h.write("    }\n\n")
-
-        # getPolyCount()
-        h.write("    int getPolyCount() const {\n")
-        h.write("        int total = 0;\n")
-        h.write(f"        for (int i = 0; i < {safe_n}; i++) {{\n")
-        h.write("            if (dlSizes[i] > 0) {\n")
-        h.write("                const u32* dl = &displayLists[i][1];\n")
-        h.write("                for (u32 j = 0; j < dlSizes[i]; j++) {\n")
-        h.write("                    u32 w = dl[j];\n")
-        h.write("                    for (int b = 0; b < 4; b++) {\n")
-        h.write(
-            "                        if (((w >> (b * 8)) & 0xFF) == 0x40) total++;\n"
-        )
-        h.write("                    }\n")
-        h.write("                }\n")
-        h.write("            }\n")
-        h.write("        }\n")
-        h.write("        return total;\n")
-        h.write("    }\n\n")
-
-        #  draw()
-        # The NDS geometry FIFO is drained asynchronously after glCallList.
-        # glBindTexture writes directly to the TEXIMAGE_PARAM register, so
-        # without a sync it can overwrite the register while the GPU is still
-        # processing the previous display list.  while(GFX_BUSY) blocks until
-        # the geometry engine has consumed everything in the FIFO.
-        h.write("    void draw() {\n")
-        for i, (tex_key, _, _, _) in enumerate(dl_groups):
-            if i > 0:
-                h.write("        while (GFX_BUSY);\n")
-            h.write(f"        glBindTexture(GL_TEXTURE_2D, textureIDs[{i}]);\n")
-            h.write(f"        if (displayLists[{i}]) glCallList(displayLists[{i}]);\n")
-        # Final sync so callers (character draw, flush) see a clean state
-        h.write("        while (GFX_BUSY);\n")
-        h.write("    }\n\n")
-
-        # drawBillboards()
-        h.write(
-            "    void drawBillboards(bool faceCamera, float camX, float camY, float camZ) {\n"
-        )
-        h.write("        if (BILLBOARD_COUNT == 0) return;\n")
-        h.write("        int  currentSlot = -1;\n")
-        h.write("        bool inQuads     = false;\n\n")
-        h.write("        for (int i = 0; i < BILLBOARD_COUNT; i++) {\n")
-        h.write(f"            const {base_name}_BillboardData& bb = BILLBOARDS[i];\n")
-        h.write("            if (bb.texSlot != currentSlot) {\n")
-        h.write("                if (inQuads) { glEnd(); inQuads = false; }\n")
-        h.write("                while (GFX_BUSY);\n")
-        h.write(
-            "                glBindTexture(GL_TEXTURE_2D, textureIDs[bb.texSlot]);\n"
-        )
-        h.write("                currentSlot = bb.texSlot;\n")
-        h.write("            }\n")
-        h.write("            if (!inQuads) { glBegin(GL_QUADS); inQuads = true; }\n\n")
-        h.write("            v16 rX = (v16)(4096), rY = 0, rZ = 0;\n")
-        h.write("            v16 uX = 0, uY = (v16)(4096), uZ = 0;\n\n")
-        h.write("            if (faceCamera) {\n")
-        h.write("                float bx = (float)bb.x / 4096.0f;\n")
-        h.write("                float bz = (float)bb.z / 4096.0f;\n")
-        h.write("                float dx = camX - bx, dz = camZ - bz;\n")
-        h.write("                float dist = sqrtf(dx*dx + dz*dz);\n")
-        h.write("                if (dist > 0.001f) { dx /= dist; dz /= dist; }\n")
-        h.write("                rX = (v16)(dz * 4096.0f);\n")
-        h.write("                rZ = (v16)(-dx * 4096.0f);\n")
-        h.write("            }\n\n")
-        h.write(
-            "            v16 rx = mulf32(rX, bb.halfWidth),  ry = mulf32(rY, bb.halfWidth),  rz = mulf32(rZ, bb.halfWidth);\n"
-        )
-        h.write(
-            "            v16 ux = mulf32(uX, bb.halfHeight), uy = mulf32(uY, bb.halfHeight), uz = mulf32(uZ, bb.halfHeight);\n\n"
-        )
-        h.write(
-            "            glTexCoord2t16(bb.u0, bb.v1); glVertex3v16(bb.x-rx-ux, bb.y-ry-uy, bb.z-rz-uz);\n"
-        )
-        h.write(
-            "            glTexCoord2t16(bb.u1, bb.v1); glVertex3v16(bb.x+rx-ux, bb.y+ry-uy, bb.z+rz-uz);\n"
-        )
-        h.write(
-            "            glTexCoord2t16(bb.u1, bb.v0); glVertex3v16(bb.x+rx+ux, bb.y+ry+uy, bb.z+rz+uz);\n"
-        )
-        h.write(
-            "            glTexCoord2t16(bb.u0, bb.v0); glVertex3v16(bb.x-rx+ux, bb.y-ry+uy, bb.z-rz+uz);\n"
-        )
-        h.write("        }\n")
-        h.write("        if (inQuads) glEnd();\n")
-        h.write("    }\n\n")
-
-        # cleanup()
-        h.write("    void cleanup() {\n")
-        if n > 0:
-            h.write(f"        for (u32 i = 0; i < {n}; i++) {{\n")
-            h.write(
-                "            if (displayLists[i]) { free(displayLists[i]); displayLists[i] = NULL; }\n"
-            )
-            h.write("        }\n")
-            h.write(f"        glDeleteTextures({n}, textureIDs);\n")
-        h.write("    }\n};\n")
-
-    _format_cpp_h_files([header_path])
-    print(f"Written: {base_name}.h")
-
     with open(tex_list_path, "w") as t:
         t.write(f"# Textures for {base_name} — run GRIT on each\n\n")
         for i, (tex_key, _, tw, th) in enumerate(dl_groups):
@@ -710,6 +663,21 @@ def convert(obj_path, output_dir, config):
                 f"# Slot {i}  ({tw}x{th})  var: {sanitize(os.path.splitext(tex_key)[0])}Bitmap\n{abs_path}\n\n"
             )
     print(f"Written: {base_name}_textures.txt")
+
+    # --- environmentDb.cpp entry --------------------------------------
+    bin_runtime_path = f"{bin_runtime_prefix}{base_name}.bin"
+    block = generate_entry_block(
+        base_name,
+        dl_groups,
+        billboards,
+        world_offset_x,
+        world_offset_z,
+        world_width,
+        world_depth,
+        bin_runtime_path,
+    )
+    update_environment_db(db_path, base_name, block, struct_header)
+    print(f"Updated: {db_path} (entry: {base_name})")
 
 
 if __name__ == "__main__":
@@ -735,6 +703,35 @@ if __name__ == "__main__":
         help="Cap texture dimensions (e.g. 64 or 128). "
         "Requires Pillow; resizes PNGs in-place.",
     )
+    parser.add_argument(
+        "--project-dir",
+        type=str,
+        default=None,
+        help="Explicit project root override (auto-detected otherwise by walking "
+        "up from output_dir looking for sibling source/ and data/ dirs)",
+    )
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default=None,
+        help="Override output path for environmentDb.cpp "
+        "(default: <project_root>/source/data/environmentDb.cpp)",
+    )
+    parser.add_argument(
+        "--struct-header",
+        type=str,
+        default="data/environmentDb.h",
+        help="Include path written at the top of environmentDb.cpp "
+        "(default: data/environmentDb.h)",
+    )
+    parser.add_argument(
+        "--bin-runtime-prefix",
+        type=str,
+        default="",
+        help="Prefix prepended to the .bin filename stored in binaryFile, "
+        "e.g. 'environments/<env>/' if the loader needs a full relative path "
+        "(default: none, just '<n>.bin')",
+    )
     args = parser.parse_args()
 
     cli_config = {
@@ -747,5 +744,9 @@ if __name__ == "__main__":
         "rgba_list": args.rgba_list,
         "color": args.color,
         "max_tex_size": args.max_tex_size,
+        "project_dir": args.project_dir,
+        "db_path": args.db_path,
+        "struct_header": args.struct_header,
+        "bin_runtime_prefix": args.bin_runtime_prefix,
     }
     convert(args.input, args.output_dir, cli_config)

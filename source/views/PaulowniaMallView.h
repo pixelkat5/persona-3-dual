@@ -1,61 +1,38 @@
-#include "views/BaseView3D.h"
-#include <nds/arm9/console.h>
-// controllers / components
-#include "components/ui/MenuHUDScreen.h"
-#include "controllers/CharacterController.h"
-#include "controllers/UIController.h"
-// environments
-#include "environments/paulownia_mall.h"
+#pragma once
 
-class PaulowniaMallView : public BaseView3D
+#include "views/EnvironmentView.h"
+
+// data
+#include "data/environmentDb.h"
+// maps
+#include "maps/paulownia_mall.h"
+
+class PaulowniaMallView : public EnvironmentView
 {
   public:
-    void init() override;
-    ViewState update() override;
-    void cleanup() override;
-    void setupEnvironment() override;
     PaulowniaMallView();
 
+  protected:
+    const EnvironmentDbEntry* getEnvironmentDbEntry() override
+    {
+        return g_environmentDb[2];
+    }
+    float getCameraYOffset() const override
+    {
+        return 0.3f;
+    }
+    CharacterController* createPlayerController() override;
+    void setMusic() override;
+    ViewState onTileCheck(TileType tile, u32 pressed) override;
+    void onDialogueStart() override;
+
   private:
-    touchPosition touch;
-
-    // sub screen
-    int bgSharedSub1;
-    int bgSharedSub2;
-    int bgSharedSub3;
-    PrintConsole console;
-
-    // 3D
-    paulownia_mall_Environment paulowniaMallEnv;
-
-    ViewPhase phase;
-    bool prevPauseState;
-    bool prevEnvironmentState;
-
-    CharacterController* playerCtrl;
-
-    // camera pos
-    CameraPosition camPos;
-    // world
-    const float tileSize = 0.062500f;
-    const float worldOffsetX = PAULOWNIA_MALL_WORLD_OFFSET_X;
-    const float worldOffsetZ = PAULOWNIA_MALL_WORLD_OFFSET_Z;
+    // movement and camera
     const Point2D<float> characterSize = Point2D<float>(0.1f, 0.1f);
-    // movement and viewpoint
     const float speed = 0.03f;
-    const float angleIncrement = 0.05f;
-    const float distance = 1.0f;
-    const float lookAhead = 0.2f;
-    // set character initial translation position
+
+    // character position
     const Point2D<float> characterTranslate = Point2D<float>(0.0122f, 2.3355f);
     const float height = 0.2f;
-    const float angle = 1.5708f * 2; // 180 degrees (rad)
-    const float characterFacingAngle = 180;
-
-    void setMusic();
-
-    UIController* uiCtrl = UIController::getInstance();
-    GraphicsController* graphicsCtrl = GraphicsController::getInstance();
-
-    MenuHUDScreen* menuHUDScreen = MenuHUDScreen::getInstance();
+    const float characterFacingAngle = 180.0f;
 };

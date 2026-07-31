@@ -50,9 +50,13 @@ void MainMenuComponent::loadBg(int bgIndex)
     }
 }
 
-void MainMenuComponent::init(int iBgSlot, bool* isActive, const std::string& iPauseMessage)
+void MainMenuComponent::init(int iBgSlot,
+                             bool* isActive,
+                             uint16_t* iTextVideoBuffer,
+                             uint16_t* iTextVideoBufferSub,
+                             const std::string& iPauseMessage)
 {
-    BaseMenu::init(iBgSlot, isActive, iPauseMessage);
+    BaseMenu::init(iBgSlot, isActive, iTextVideoBuffer, iTextVideoBufferSub, iPauseMessage);
     options = mainMenuOptions;
     optionCount = MAIN_MENU_OPTIONS;
 }

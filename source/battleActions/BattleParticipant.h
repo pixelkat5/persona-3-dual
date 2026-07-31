@@ -10,6 +10,21 @@
 #include <nds.h>
 #include <vector>
 
+/**
+ * @brief Participant of battle
+ *
+ * can be an enemy, partyMember or player.
+ *
+ * @details
+ * Parent of PartyMember.cpp (which is the Player's parent) and Enemy.cpp
+ * since a lot of things are shared between them, and even for some things
+ * where you might not expect it like enemies have values for Armour
+ * with an actuall usecase. Otherwise the goal is to really on virtual
+ * functions to generalize the code as much as possible to make it
+ * scalable.
+ *
+ * @author Nolan Kolb (TrueGiles / themoonwalker8692)
+ */
 struct BattleParticipant
 {
     std::string name;

@@ -3,6 +3,27 @@
 #include "../skills/BattleCalcs.h"
 #include <stdlib.h>
 
+Enemy::Enemy(const EnemyProfile& iEnemyProfile) : enemyProfile(iEnemyProfile)
+{
+    participantType = ParticipantType::Enemy;
+
+    name = enemyProfile.name;
+    maxHp = enemyProfile.maxHp;
+    hp = enemyProfile.hp;
+    maxSp = enemyProfile.maxSp;
+    sp = enemyProfile.sp;
+    lv = enemyProfile.lv;
+
+    battleStats = enemyProfile.battleStats;
+
+    baseAttackAction = enemyProfile.baseAttackAction;
+    skill = enemyProfile.skill;
+    skillCount = enemyProfile.skillCount;
+
+    armour = enemyProfile.armour;
+    shoe = enemyProfile.shoe;
+}
+
 Skill* Enemy::pickSkill()
 {
     u32 roll = rand() % (skillCount + 1);

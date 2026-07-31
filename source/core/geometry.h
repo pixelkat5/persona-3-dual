@@ -119,4 +119,69 @@ template <typename T> struct Rectangle
     }
 };
 
+template <typename T> struct Vec3
+{
+    T x;
+    T y;
+    T z;
+
+    Vec3() : x(0), y(0), z(0)
+    {
+    }
+    Vec3(T x, T y, T z) : x(x), y(y), z(z)
+    {
+    }
+
+    Vec3<T> operator+(const Vec3<T>& other) const
+    {
+        return Vec3<T>(x + other.x, y + other.y, z + other.z);
+    }
+
+    Vec3<T> operator-(const Vec3<T>& other) const
+    {
+        return Vec3<T>(x - other.x, y - other.y, z - other.z);
+    }
+
+    Vec3<T> operator*(T scalar) const
+    {
+        return Vec3<T>(x * scalar, y * scalar, z * scalar);
+    }
+
+    Vec3<T>& operator+=(const Vec3<T>& other)
+    {
+        x += other.x;
+        y += other.y;
+        z += other.z;
+        return *this;
+    }
+
+    Vec3<T>& operator=(const Vec3<T>& other)
+    {
+        x = other.x;
+        y = other.y;
+        z = other.z;
+        return *this;
+    }
+
+    bool operator==(const Vec3<T>& other) const
+    {
+        return x == other.x && y == other.y && z == other.z;
+    }
+
+    bool operator!=(const Vec3<T>& other) const
+    {
+        return !(*this == other);
+    }
+
+    T dot(const Vec3<T>& other) const
+    {
+        return x * other.x + y * other.y + z * other.z;
+    }
+
+    Vec3<T> cross(const Vec3<T>& other) const
+    {
+        return Vec3<T>(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
+    }
+};
+
 #endif

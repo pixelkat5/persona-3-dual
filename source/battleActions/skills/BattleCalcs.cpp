@@ -93,6 +93,11 @@ u32 BattleCalcs::getAtk(BattleStats& attackerStats, Skill& skill)
     }
 }
 
+/**
+ * @brief gets a multiplier used for damage calcs based on some arbitrary hardcoded table
+ *
+ * @author Nolan Kolb (TrueGiles / themoonwalker8692)
+ */
 float BattleCalcs::getLevelDifference(u32 attackerLevel, u32 defenderLevel)
 {
     s32 diff = attackerLevel - defenderLevel;
@@ -123,6 +128,11 @@ float BattleCalcs::getAffinityMtp(BattleStats& defenderStats, Skill& skill)
     }
 }
 
+/**
+ * @brief gets a boost for healing based on some arbitrary table, decided by lvl
+ *
+ * @author Nolan Kolb (TrueGiles / themoonwalker8692)
+ */
 u32 BattleCalcs::getMagicBoostHeal(u32& magic)
 {
     u32 index = (magic - 1) / 5;

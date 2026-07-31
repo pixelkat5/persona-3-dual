@@ -1,6 +1,7 @@
 #pragma once
 #include "../BattleParticipant.h"
 #include "../TurnResult.h"
+#include "EnemyProfile.h"
 #include <nds.h>
 #include <vector>
 
@@ -10,10 +11,9 @@ struct Enemy : BattleParticipant
     u32 skillCount;
     BattleStats battleStats;
 
-    Enemy()
-    {
-        participantType = ParticipantType::Enemy;
-    }
+    EnemyProfile enemyProfile;
+
+    Enemy(const EnemyProfile& iEnemyProfile);
 
     Skill* pickSkill();
     BattleParticipant* pickTarget(std::vector<BattleParticipant*>& partyMembers);

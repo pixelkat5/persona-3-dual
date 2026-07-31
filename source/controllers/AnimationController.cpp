@@ -258,7 +258,8 @@ void AnimationController::set(int animIndex, bool loop)
     if (animIndex < 0 || animIndex >= (int)animations.size())
         return;
     currentAnimIndex = animIndex;
-    currentFrame = 0;
+    currentFrameFP = 0;
+    animSpeedFP = 128; // 30FPS to 60FPS
     isFinishing = false;
     isLooping = loop;
     fill(trackIndices.begin(), trackIndices.end(), 0);
@@ -270,9 +271,9 @@ void AnimationController::play()
         return;
     isPlaying = true;
     isFinishing = false;
-    if (currentFrame >= animations[currentAnimIndex].duration - 1)
+    if ((currentFrameFP >> 8) >= animations[currentAnimIndex].duration - 1)
     {
-        currentFrame = 0;
+        currentFrameFP = 0;
         fill(trackIndices.begin(), trackIndices.end(), 0);
     }
 }
@@ -281,7 +282,7 @@ void AnimationController::stop()
 {
     isPlaying = false;
     isFinishing = false;
-    currentFrame = 0;
+    currentFrameFP = 0;
     fill(trackIndices.begin(), trackIndices.end(), 0);
 }
 
@@ -295,9 +296,10 @@ void AnimationController::update()
     if (!isPlaying || currentAnimIndex == -1)
         return;
 
-    currentFrame++;
+    currentFrameFP += animSpeedFP;
+    int currentFrameInt = currentFrameFP >> 8;
 
-    if (currentFrame >= animations[currentAnimIndex].duration)
+    if (currentFrameInt >= animations[currentAnimIndex].duration)
     {
         if (isFinishing || !isLooping)
         {
@@ -305,24 +307,24 @@ void AnimationController::update()
             isFinishing = false;
             if (!isLooping)
             {
-                currentFrame = animations[currentAnimIndex].duration - 1;
+                currentFrameFP = (animations[currentAnimIndex].duration - 1) << 8;
             }
             else
             {
-                currentFrame = 0;
+                currentFrameFP = 0;
                 fill(trackIndices.begin(), trackIndices.end(), 0);
             }
         }
         else
         {
-            currentFrame = 0;
+            currentFrameFP = 0;
             fill(trackIndices.begin(), trackIndices.end(), 0);
         }
     }
 }
 
 // Interpolation
-Keyframe AnimationController::getInterpolatedFrame(const AnimTrack& track, int time, int nodeId)
+Keyframe AnimationController::getInterpolatedFrame(const AnimTrack& track, int timeFP, int nodeId)
 {
     if (track.frames.empty())
         return {0, 0, 0, 0, 0, 0, 0};
@@ -331,11 +333,13 @@ Keyframe AnimationController::getInterpolatedFrame(const AnimTrack& track, int t
 
     int& cacheIdx = trackIndices[nodeId];
 
-    if (cacheIdx >= (int)track.frames.size() - 1 || time < track.frames[cacheIdx].time)
+    int timeInt = timeFP >> 8;
+
+    if (cacheIdx >= (int)track.frames.size() - 1 || timeInt < track.frames[cacheIdx].time)
     {
         cacheIdx = 0;
     }
-    while (cacheIdx < (int)track.frames.size() - 1 && time >= track.frames[cacheIdx + 1].time)
+    while (cacheIdx < (int)track.frames.size() - 1 && timeInt >= track.frames[cacheIdx + 1].time)
     {
         cacheIdx++;
     }
@@ -349,14 +353,14 @@ Keyframe AnimationController::getInterpolatedFrame(const AnimTrack& track, int t
     if (range == 0)
         return k1;
 
-    int progress = time - k1.time;
-    if (progress == 0)
+    int progressFP = timeFP - (k1.time << 8);
+    if (progressFP == 0)
         return k1;
 
-    int t = (progress << 12) / range; // 0..4096 fixed-point
+    int t = (progressFP << 4) / range; // converts 8-bit frac to 12-bit frac (0..4096)
 
     Keyframe result;
-    result.time = time;
+    result.time = timeInt;
     result.posX = k1.posX + (((k2.posX - k1.posX) * t) >> 12);
     result.posY = k1.posY + (((k2.posY - k1.posY) * t) >> 12);
     result.posZ = k1.posZ + (((k2.posZ - k1.posZ) * t) >> 12);
@@ -391,7 +395,7 @@ void AnimationController::renderNode(int nodeId)
     if (currentAnimIndex != -1)
     {
         AnimTrack& track = animations[currentAnimIndex].nodeTracks[nodeId];
-        Keyframe current = getInterpolatedFrame(track, currentFrame, nodeId);
+        Keyframe current = getInterpolatedFrame(track, currentFrameFP, nodeId);
 
         glTranslatef32(node.pivotX + current.posX, node.pivotY + current.posY, node.pivotZ + current.posZ);
         glRotateZi(current.rotZ);

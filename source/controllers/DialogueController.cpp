@@ -11,34 +11,41 @@ void DialogueController::advanceTo(Dialogue* next)
 {
     current = next;
     animIndex = 0;
-    animDone = false;
     doRenderOptions = false;
     optionCount = 0;
     selectedOption = 0;
-    consoleClear();
+    textCtrl->clearScreen(textVideoBufferSub);
+    renderAnimFrame();
 }
 
 // print the text up to animIndex using a precision field
 void DialogueController::renderAnimFrame()
 {
-    iprintf("\x1b[15;4H%s\n", current->characterName.c_str());
-    iprintf("\x1b[17;0H%.*s\n", animIndex, current->text.c_str());
+    textCtrl->drawText(current->characterName, font, textVideoBufferSub, 32, 115, TextColor::White);
+    textCtrl->appearText(current->text, font, textVideoBufferSub, 0, 130, TextColor::White);
 }
 
 void DialogueController::renderOptions()
 {
     // reprint the complete line then list choices below it
-    consoleClear();
-    iprintf("\x1b[15;4H%s\n", current->characterName.c_str());
-    iprintf("\x1b[17;0H%s\n", current->text.c_str());
+    textCtrl->clearScreen(textVideoBufferSub);
+    textCtrl->drawText(current->characterName, font, textVideoBufferSub, 32, 115, TextColor::White);
+    textCtrl->drawText(current->text, font, textVideoBufferSub, 0, 130, TextColor::White);
+    //TODO: The options are currently drawn outside the textbox, do we want to add an extra overlay for them similar to the actual game?
     for (int i = 0; i < optionCount; i++)
     {
-        iprintf("%c %s\n", i == selectedOption ? '>' : ' ', current->selections[i].text.c_str());
+        if (i == selectedOption)
+            textCtrl->drawText(current->selections[i].text, font, textVideoBufferSub, 128, 50 + i * 8, TextColor::Blue);
+        else
+            textCtrl->drawText(
+                current->selections[i].text, font, textVideoBufferSub, 128, 50 + i * 8, TextColor::White);
     }
 }
 
-void DialogueController::start(Dialogue* firstLine)
+void DialogueController::start(Dialogue* firstLine, Font* font, uint16_t* textVideoBufferSub)
 {
+    this->textVideoBufferSub = textVideoBufferSub;
+    this->font = font;
     loadedImageId = -1; // force a bg load for the very first line
     prevKeys = 0;
     advanceTo(firstLine);
@@ -47,7 +54,7 @@ void DialogueController::start(Dialogue* firstLine)
 
 void DialogueController::exit()
 {
-    consoleClear();
+    textCtrl->clearScreen(textVideoBufferSub);
     active = false;
 }
 
@@ -60,8 +67,9 @@ void DialogueController::update(u32 keys)
     }
 
     // animation
-    if (!animDone)
+    if (!textCtrl->appearTextDone())
     {
+        textCtrl->update();
         // swap the background exactly once per dialogue line, on the first
         // frame, and only if the image has actually changed
         if (animIndex == 0 && bgLoader && current->imageId != loadedImageId)
@@ -69,15 +77,8 @@ void DialogueController::update(u32 keys)
             bgLoader(current->imageId);
             loadedImageId = current->imageId;
         }
-
-        if (animIndex <= (int)current->text.length())
-        {
-            renderAnimFrame();
-            animIndex++;
-        }
         else
         {
-            animDone = true;
             optionCount = (int)current->selections.size();
 
             if (optionCount > 0)
@@ -86,11 +87,8 @@ void DialogueController::update(u32 keys)
                 doRenderOptions = true;
             }
         }
-        return; // consume the frame (don't process input yet)
     }
-
-    // deferred option render (first frame after animation)
-    if (doRenderOptions)
+    else if (doRenderOptions)
     {
         renderOptions();
         doRenderOptions = false;
@@ -108,19 +106,27 @@ void DialogueController::update(u32 keys)
 
     if (optionCount > 0)
     {
-        // selection dialogue
-        if (pressed & KEY_DOWN)
+        if (textCtrl->appearTextDone())
         {
-            selectedOption = (selectedOption + 1) % optionCount;
-            renderOptions();
+            // selection dialogue
+            if (pressed & KEY_DOWN)
+            {
+                selectedOption = (selectedOption + 1) % optionCount;
+                renderOptions();
+            }
+            else if (pressed & KEY_UP)
+            {
+                selectedOption = (selectedOption + optionCount - 1) % optionCount;
+                renderOptions();
+            }
         }
-        else if (pressed & KEY_UP)
+        if (pressed & KEY_A)
         {
-            selectedOption = (selectedOption + optionCount - 1) % optionCount;
-            renderOptions();
-        }
-        else if (pressed & KEY_A)
-        {
+            if (!textCtrl->appearTextDone())
+            {
+                textCtrl->appearTextSkip();
+                return;
+            }
             Dialogue* next = current->selections[selectedOption].next;
             if (next == nullptr)
             {
@@ -135,6 +141,11 @@ void DialogueController::update(u32 keys)
         // linear dialogue
         if (pressed & KEY_A)
         {
+            if (!textCtrl->appearTextDone())
+            {
+                textCtrl->appearTextSkip();
+                return;
+            }
             Dialogue* next = current->next;
             if (next == nullptr)
             {
@@ -145,6 +156,11 @@ void DialogueController::update(u32 keys)
         }
         else if (pressed & KEY_B)
         {
+            if (!textCtrl->appearTextDone())
+            {
+                textCtrl->appearTextSkip();
+                return;
+            }
             Dialogue* next = current->prev;
             if (next == nullptr)
             {

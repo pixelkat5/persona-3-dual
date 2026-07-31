@@ -3,6 +3,12 @@
 #include "armours/Armour.h"
 #include <nds.h>
 
+/**
+ * @brief Basic stats / affinities. Used by Personas or directly by Enemies.
+ *
+ * @author Nolan Kolb (TrueGiles / themoonwalker8692)
+*/
+
 struct BattleStats
 {
     u32 st;
@@ -38,5 +44,4 @@ struct BattleStats
     {
         return this;
     };
-    // add afinites
 };

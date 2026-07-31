@@ -24,6 +24,9 @@ persona-3-dual.lst
 /data/environments/*
 !/data/environments/.gitkeep
 
+/data/fonts/*
+!/data/fonts/.gitkeep
+
 /data/models/*
 !/data/models/.gitkeep
 
@@ -40,9 +43,12 @@ persona-3-dual.lst
 /data/graphics/*
 !/data/graphics/.gitkeep
 
+/docs/doxygen/*
+
 /tools/converters/__pycache__
 *.pyc
 .DS_Store
 sdcard.img
 sdcard.img.idx
 .venv/
+.idea/

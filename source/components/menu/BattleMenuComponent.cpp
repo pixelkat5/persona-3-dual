@@ -35,9 +35,13 @@ void BattleMenuComponent::loadBg(int bgIndex)
     return;
 }
 
-void BattleMenuComponent::init(int iBgSlot, bool* isActive, const std::string& iPauseMessage)
+void BattleMenuComponent::init(int iBgSlot,
+                               bool* isActive,
+                               uint16_t* iTextVideoBuffer,
+                               uint16_t* iTextVideoBufferSub,
+                               const std::string& iPauseMessage)
 {
-    BaseMenu::init(iBgSlot, isActive, iPauseMessage);
+    BaseMenu::init(iBgSlot, isActive, iTextVideoBuffer, iTextVideoBufferSub, iPauseMessage);
 
     options = nullptr;
     optionCount = 0;
@@ -47,6 +51,7 @@ void BattleMenuComponent::init(int iBgSlot, bool* isActive, const std::string& i
 // option loaders
 void BattleMenuComponent::loadActionOptions(std::array<ActionBase*, 4>* actions, std::string name)
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     // skip if action options have already been loaded
     if (loadedOption == BattleMenuOptions::ACTION)
     {
@@ -73,6 +78,7 @@ void BattleMenuComponent::loadActionOptions(std::array<ActionBase*, 4>* actions,
 
 void BattleMenuComponent::loadSkillOptions(PersonaBase* persona)
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     // skip if action options have already been loaded
     if (loadedOption == BattleMenuOptions::SKILL)
     {
@@ -100,6 +106,7 @@ void BattleMenuComponent::loadSkillOptions(PersonaBase* persona)
 
 void BattleMenuComponent::loadPersonaOptions(std::vector<PersonaBase*>* personas)
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     if (loadedOption == BattleMenuOptions::PERSONA)
         return;
 
@@ -120,6 +127,7 @@ void BattleMenuComponent::loadPersonaOptions(std::vector<PersonaBase*>* personas
 
 void BattleMenuComponent::loadTargetOptions(std::vector<BattleParticipant*>* targets, bool healTarget)
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     BattleMenuOptions targetLoadedOption =
         healTarget ? BattleMenuOptions::TARGET_HEAL : BattleMenuOptions::TARGET_ENEMY;
 
@@ -143,6 +151,7 @@ void BattleMenuComponent::loadTargetOptions(std::vector<BattleParticipant*>* tar
 
 void BattleMenuComponent::loadAllOutAttackConfirmation()
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     if (loadedOption == BattleMenuOptions::ALL_OUT_ATTACK)
     {
         return;
@@ -187,6 +196,7 @@ void BattleMenuComponent::reset()
     loadedOption = BattleMenuOptions::NONE;
     *isActivePtr = false;
     pauseMessage = "";
+    messagePrinted = false;
     selectedOption = 0;
     startIndex = 0;
 }
@@ -195,9 +205,12 @@ ViewState BattleMenuComponent::update(int keys)
 {
     if (loadedOption == BattleMenuOptions::ALERT)
     {
-        consoleClear();
-        iprintf("\x1b[0;0H");
-        iprintf("%s", pauseMessage.c_str());
+        if (!messagePrinted)
+        {
+            textCtrl->clearScreen(textVideoBufferSub);
+            messagePrinted = true;
+            textCtrl->drawText(pauseMessage, font, textVideoBufferSub, 0, 0, 2);
+        }
         return ViewState::KEEP_CURRENT;
     }
 

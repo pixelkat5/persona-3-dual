@@ -9,10 +9,6 @@ void MainMenuView::init()
     // setup music
     musicCtrl->init((fatBasePath + "music/menus/velvetRoom/aria_of_the_soul.pcm").c_str(), 0.0f, 164.940f);
 
-    // setup menu
-    isMainMenuCmptActive = true;
-    mainMenuCmpt.init(-1, &isMainMenuCmptActive);
-
     // transition both screens from black
     for (int i = -16; i < 0; i++)
     {
@@ -29,7 +25,7 @@ void MainMenuView::init()
     // set video mode for 2 text layers and 2 extended rotation layer
     videoSetMode(MODE_5_2D);
     // set sub video mode for 4 text layers
-    videoSetModeSub(MODE_0_2D);
+    videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
 
     // map vram bank A to main engine background (slot 0)
     vramSetBankA(VRAM_A_MAIN_BG_0x06000000);
@@ -42,10 +38,20 @@ void MainMenuView::init()
     // enable extended palettes
     bgExtPaletteEnable();
 
+    //setup text engine
+    int bgTextSub = bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 4, 0);
+    uint16_t* textVideoBufferSub = bgGetGfxPtr(bgTextSub);
+    bgSetPriority(bgTextSub, 0);
+    TextController::getInstance()->loadDefaultPalette();
+
+    // setup menu
+    isMainMenuCmptActive = true;
+    mainMenuCmpt.init(-1, &isMainMenuCmptActive, nullptr, textVideoBufferSub);
+
     // setup console
     consoleInit(&console, 0, BgType_Text4bpp, BgSize_T_256x256, 2, 0, false, true);
     consoleSelect(&console);
-    bgSetPriority(console.bgId, 0);
+    bgSetPriority(console.bgId, 1);
 
     // set brightness on bottom screen to completely dark (no visible image)
     setBrightness(2, -16);
@@ -119,38 +125,50 @@ ViewState MainMenuView::update()
 {
     scanKeys();
     int pressed = keysDown();
+    musicCtrl->update();
 
+    if (isSilhouetteStillMoving)
+    {
+        // skip the animation if the user skipped it
+        if (pressed != 0)
+        {
+            silhouetteX = 0;
+            silhouetteY = 0;
+            isSilhouetteStillMoving = false;
+        }
+
+        // animate X (moving right towards 0)
+        if (silhouetteX < 0 && frame % 5 == 0)
+        {
+            silhouetteX += (-silhouetteX) / 6 + 1;
+        }
+
+        // animate Y (moving up towards 0)
+        if (silhouetteY > 0 && frame % 5 == 0)
+        {
+            silhouetteY -= (silhouetteY / 6) + 1;
+        }
+
+        if (silhouetteX >= 0)
+        {
+            isSilhouetteStillMoving = false;
+            silhouetteX = 0;
+        }
+        if (silhouetteY <= 0)
+        {
+            isSilhouetteStillMoving = false;
+            silhouetteY = 0;
+        }
+        bgSetScroll(bg[0], -silhouetteX, -silhouetteY);
+        return ViewState::KEEP_CURRENT;
+    }
+
+    // update mainComponent AFTER checking if the sillouhete is still moving
     ViewState result = mainMenuCmpt.update(pressed);
     if (result != ViewState::KEEP_CURRENT)
     {
         musicCtrl->pause();
         return result;
-    }
-    musicCtrl->update();
-
-    // scroll silhouette background
-    // animate X (moving right towards 0)
-    if (silhouetteX < 0 && frame % 5 == 0)
-    {
-        silhouetteX += (-silhouetteX) / 6 + 1;
-        if (silhouetteX > 0)
-            silhouetteX = 0;
-    }
-
-    // animate Y (moving up towards 0)
-    if (silhouetteY > 0 && frame % 5 == 0)
-    {
-        silhouetteY -= (silhouetteY / 6) + 1;
-        if (silhouetteY < 0)
-            silhouetteY = 0;
-    }
-
-    bgSetScroll(bg[0], -silhouetteX, -silhouetteY);
-
-    // perform code after silhouette slide-in
-    if (silhouetteX < 0 || silhouetteY < 0)
-    {
-        return ViewState::KEEP_CURRENT;
     }
 
     // fade in bottom screen text

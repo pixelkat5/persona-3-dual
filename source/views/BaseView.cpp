@@ -5,7 +5,6 @@ void BaseView::cleanup()
 {
     // clear screen
     setBrightness(3, 0);
-    consoleClear();
 
     // global controllers
     videoCtrl->cleanup();

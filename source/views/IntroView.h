@@ -11,7 +11,8 @@ class IntroView : public BaseView
     // sub screen
     int bgSubLogo;
     int bgSubSky;
-    PrintConsole console;
+    int bgSubText;
+    uint16_t* textVideoBufferSub;
 
     // for silhouette animation
     int silhouetteX = -256;
@@ -38,6 +39,8 @@ class IntroView : public BaseView
     int fluctuation = 50;
 
     GraphicsController* graphicsCtrl = GraphicsController::getInstance();
+    Font* font = textCtrl->loadFont("cosmetica", 16);
+    TextController* textCtrl = TextController::getInstance();
 
   public:
     void init() override;

@@ -1,9 +1,11 @@
 #pragma once
 #include "components/menu/BaseMenu.h"
 #include "controllers/AnimationController.h"
+#include "controllers/CameraController.h"
 #include "controllers/GraphicsController.h"
 #include "core/globals.h"
 #include "dialogue/demo_dialogue.h"
+#include <array>
 
 #define MENU_OPTIONS 8
 #define SKILL_OPTIONS 9
@@ -13,7 +15,7 @@
 #define STATS_OPTIONS 9
 #define S_LINK_OPTIONS 3
 #define SYSTEM_OPTIONS 6
-#define DEBUG_OPTIONS 15
+#define DEBUG_OPTIONS 16
 #define CHARACTER_ANIM_OPTIONS 25
 #define SKILLS 2
 
@@ -24,8 +26,13 @@ class PauseMenuComponent : public BaseMenu
 
   private:
     PauseMenuComponent() {};
-    virtual ~PauseMenuComponent() = default; //w/o virtual we get a possible undefined behavior warning
+    virtual ~PauseMenuComponent() = default;
     static PauseMenuComponent* instance;
+
+    CameraController* cameraCtrl = nullptr;
+
+    std::array<CameraMode, 4> cameraModes = {
+        CameraMode::Free, CameraMode::Static, CameraMode::CCTV, CameraMode::Follow};
 
     MenuOption menuOptions[MENU_OPTIONS] = {
         {"Debug", -1, MENU_BIND(PauseMenuComponent, openDebugMenu)},
@@ -54,6 +61,7 @@ class PauseMenuComponent : public BaseMenu
         {"Toggle Billboards", -1, MENU_BIND(PauseMenuComponent, debugOptionSelected)},
         {"Toggle Debug Print", -1, MENU_BIND(PauseMenuComponent, debugOptionSelected)},
         {"Play Character Animations", -1, MENU_BIND(PauseMenuComponent, openCharacterAnimMenu)},
+        {"Cycle Camera Mode", -1, MENU_BIND(PauseMenuComponent, debugOptionSelected)},
     };
 
     MenuOption skillOptions[SKILL_OPTIONS] = {
@@ -184,6 +192,18 @@ class PauseMenuComponent : public BaseMenu
 
     void init(int iBgSlot,
               bool* isActive = &Globals::isPauseMenuActive,
+              uint16_t* iTextVideoBuffer = nullptr,
+              uint16_t* iTextVideoBufferSub = nullptr,
               const std::string& iPauseMessage = "Pause") override;
     ViewState update(int keys) override;
+
+    /**
+     * @brief Resets the pause menu to its initial state.
+     */
+    void reset() override;
+
+    void setCameraController(CameraController* ctrl)
+    {
+        cameraCtrl = ctrl;
+    }
 };

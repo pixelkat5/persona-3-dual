@@ -36,12 +36,16 @@
 
 // DBs
 #include "battleActions/armours/ArmourDb.h"
-#include "battleActions/enemies/EnemyDb.h"
+#include "battleActions/enemies/EnemyProfileDb.h"
 #include "battleActions/party/CharacterProfileDb.h"
 #include "battleActions/personas/PersonaDb.h"
 #include "battleActions/shoes/ShoeDb.h"
 #include "battleActions/skills/SkillDb.h"
 #include "battleActions/weapons/WeaponDb.h"
+
+// debug
+#include "tests/engine/ndsExample.hpp"
+bool testEngine = false;
 
 // variables
 volatile int frame = 0;
@@ -124,6 +128,13 @@ int main(int argc, char* argv[])
 {
     irqSet(IRQ_VBLANK, Vblank);
 
+    if (testEngine)
+    {
+        ndsExampleTest();
+        while (1)
+            swiWaitForVBlank();
+    }
+
     // Initialize DLDI/FAT instead
     if (!fatInitDefault())
     {
@@ -177,7 +188,7 @@ int main(int argc, char* argv[])
     ArmourDb::Initialize();
     ShoeDb::Initialize();
     PersonaDb::Initialize();
-    EnemyDb::Initialize();
+    EnemyProfileDb::Initialize();
     CharacterProfileDb::Initialize();
     //Setup globals
     Globals::enableDebugPrint = false;

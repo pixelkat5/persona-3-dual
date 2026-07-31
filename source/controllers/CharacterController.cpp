@@ -1,8 +1,8 @@
-#include "CharacterController.h"
-#include "core/globals.h"
 #include "math.h"
 #include <nds.h>
 #include <stdio.h>
+
+#include "CharacterController.h"
 
 // check collision
 TileType CharacterController::isTileAt(int tileX, int tileZ)
@@ -54,14 +54,14 @@ CharacterPosition CharacterController::isCharacterAt()
     charPos.x = characterTranslate.x;
     charPos.z = characterTranslate.z;
     charPos.y = height;
-    charPos.angle = angle;
     charPos.facingAngle = characterFacingAngle;
 
     return charPos;
 }
 
-CameraPosition CharacterController::update(u32 keys)
+void CharacterController::update(u32 keys, CameraController* camera)
 {
+    float cameraAngle = camera->getMovementAngle(isCharacterAt());
     float forwardX;
     float forwardZ;
     float rightX;
@@ -75,17 +75,10 @@ CameraPosition CharacterController::update(u32 keys)
 
     float angleRad;
 
-    CameraPosition camPos;
-
-    forwardX = -sin(angle) * speed;
-    forwardZ = cos(angle) * speed;
-    rightX = cos(angle) * speed;
-    rightZ = sin(angle) * speed;
-
-    if (!fixedCamera && (keys & KEY_L))
-        angle -= angleIncrement;
-    if (!fixedCamera && (keys & KEY_R))
-        angle += angleIncrement;
+    forwardX = -sin(cameraAngle) * speed;
+    forwardZ = cos(cameraAngle) * speed;
+    rightX = cos(cameraAngle) * speed;
+    rightZ = sin(cameraAngle) * speed;
 
     if (keys & KEY_UP)
     {
@@ -111,7 +104,7 @@ CameraPosition CharacterController::update(u32 keys)
         deltaZ += rightZ;
     }
 
-    if (deltaX != 0.0f && deltaZ != 0.0f)
+    if (deltaX != 0.0f || deltaZ != 0.0f)
     {
         // set walking animation
         if (Globals::enableCharacterAnim && (characterAnimationCtrl->getCurrentAnimIndex() != characterWalkAnim))
@@ -120,9 +113,12 @@ CameraPosition CharacterController::update(u32 keys)
         }
 
         // normalize diagonal movement to prevent faster speed
-        const float invSqrt2 = 0.707106781187; // 1/sqrt(2)
-        deltaX *= invSqrt2;
-        deltaZ *= invSqrt2;
+        if (deltaX != 0.0f && deltaZ != 0.0f)
+        {
+            const float invSqrt2 = 0.707106781187f;
+            deltaX *= invSqrt2;
+            deltaZ *= invSqrt2;
+        }
     }
     else
     {
@@ -154,27 +150,10 @@ CameraPosition CharacterController::update(u32 keys)
         characterTranslate.z = nextZ;
     }
 
-    // only update the angle if button is being pressed
     if (deltaX != 0.0f || deltaZ != 0.0f)
     {
         // return angle in radians and convert to degrees
         angleRad = atan2(deltaX, deltaZ);
         characterFacingAngle = angleRad * (180.0f / 3.14159265f);
     }
-
-    // set camera positions
-    camPos.cameraX = characterTranslate.x + (sin(angle) * distance);
-    camPos.cameraY = 0.6f + height;
-    camPos.cameraZ = characterTranslate.z - (cos(angle) * distance);
-
-    // look further down the same path the camera is facing
-    camPos.targetX = characterTranslate.x - (sin(angle) * lookAhead);
-    camPos.targetY = 0.1f + height;
-    camPos.targetZ = characterTranslate.z + (cos(angle) * lookAhead);
-
-    camPos.upX = 0.0f;
-    camPos.upY = 1.0f + height;
-    camPos.upZ = 0.0f;
-
-    return camPos;
 }

@@ -31,6 +31,12 @@ class AnimationController
     void stop();
     void pause();
 
+    // Adjust animation speed
+    void setAnimationSpeed(float speedMultiplier = 1.0f)
+    {
+        animSpeedFP = (int)(speedMultiplier * 128.0f);
+    }
+
     // Call once per frame (advances the frame counter)
     void update();
 
@@ -52,7 +58,7 @@ class AnimationController
     static AnimationController* instance;
 
     void renderNode(int nodeId);
-    Keyframe getInterpolatedFrame(const AnimTrack& track, int currentTime, int nodeId);
+    Keyframe getInterpolatedFrame(const AnimTrack& track, int timeFP, int nodeId);
     static int textureSizeToEnum(int px);
 
     std::vector<AnimNode> modelNodes;
@@ -64,7 +70,8 @@ class AnimationController
     std::vector<int> textureIDs;
 
     int currentAnimIndex = -1;
-    int currentFrame = 0;
+    int currentFrameFP = 0;
+    int animSpeedFP = 128; // 128 = 0.5 frames per tick (converts 30fps to 60fps)
     bool isPlaying = false;
     bool isFinishing = false;
     bool isLooping = true;

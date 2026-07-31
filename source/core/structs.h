@@ -1,5 +1,6 @@
 #pragma once
 #include "core/enums.h"
+#include "core/geometry.h"
 #include <nds.h>
 #include <string>
 #include <vector>
@@ -48,7 +49,6 @@ struct MenuState
     int startIndex;
 };
 
-// From AnimationController.h
 struct Keyframe
 {
     int time;
@@ -74,6 +74,51 @@ struct SubList
     u32 displayListSize;
 };
 
+struct EnvironmentTexture
+{
+    const char* name;
+    int width;
+    int height;
+
+    const unsigned int* bitmap;
+};
+
+struct BillboardData
+{
+    const char* name;
+    v16 x, y, z;
+    v16 halfWidth;
+    v16 halfHeight;
+
+    int texSlot;
+
+    short u0, v0;
+    short u1, v1;
+};
+
+struct EnvironmentDbEntry
+{
+    // Name/debugging
+    const char* name;
+
+    // Binary display list file
+    const char* binaryFile;
+
+    // World bounds
+    float worldOffsetX;
+    float worldOffsetZ;
+    float worldWidth;
+    float worldDepth;
+
+    // Texture information
+    int textureCount;
+    const EnvironmentTexture* textures;
+
+    // Billboards
+    int billboardCount;
+    const BillboardData* billboards;
+};
+
 struct AnimNode
 {
     int id;
@@ -83,26 +128,11 @@ struct AnimNode
     v16 pivotX, pivotY, pivotZ;
 };
 
-// From CharacterController.h
-struct CameraPosition
-{
-    float cameraX;
-    float cameraY;
-    float cameraZ;
-    float targetX;
-    float targetY;
-    float targetZ;
-    float upX;
-    float upY;
-    float upZ;
-};
-
 struct CharacterPosition
 {
     float x;
     float z;
     float y; // height
-    float angle;
     float facingAngle;
 };
 

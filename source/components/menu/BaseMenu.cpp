@@ -9,7 +9,11 @@ void BaseMenu::cancelSFX()
     musicCtrl->stopSFX(sfxCancelHandle);
 }
 
-void BaseMenu::init(int iBgSlot, bool* isActive, const std::string& iPauseMessage)
+void BaseMenu::init(int iBgSlot,
+                    bool* isActive,
+                    uint16_t* iTextVideoBuffer,
+                    uint16_t* iTextVideoBufferSub,
+                    const std::string& iPauseMessage)
 {
     // point to music
     musicCtrl->loadSFX(SFX_MENU);
@@ -25,9 +29,19 @@ void BaseMenu::init(int iBgSlot, bool* isActive, const std::string& iPauseMessag
     pauseMessage = iPauseMessage;
     bgSlot = iBgSlot;
     isActivePtr = isActive;
+    textVideoBuffer = iTextVideoBuffer;
+    textVideoBufferSub = iTextVideoBufferSub;
 
     // initialize view state
     nextViewState = ViewState::KEEP_CURRENT;
+}
+
+void BaseMenu::reset()
+{
+    selectedOption = 0;
+    startIndex = 0;
+    while (!prevOptions.empty())
+        prevOptions.pop();
 }
 
 ViewState BaseMenu::update(int keys)
@@ -48,11 +62,13 @@ ViewState BaseMenu::update(int keys)
     if (selectedOption < startIndex)
     {
         startIndex = selectedOption;
+        textCtrl->clearScreen(textVideoBufferSub);
     }
 
     if (selectedOption >= startIndex + visibleOptions)
     {
         startIndex = selectedOption - visibleOptions + 1;
+        textCtrl->clearScreen(textVideoBufferSub);
     }
     else if (keys & KEY_A)
     {
@@ -60,6 +76,8 @@ ViewState BaseMenu::update(int keys)
         sfxSelectHandle = musicCtrl->playSFX(SFX_SELECT, 255, 128);
 
         MenuState currentState = {options, optionCount, selectedOption, startIndex};
+
+        textCtrl->clearScreen(textVideoBufferSub);
 
         if (options[selectedOption].onSelect != nullptr)
         {
@@ -89,24 +107,22 @@ ViewState BaseMenu::update(int keys)
         prevOption();
     }
 
-    consoleClear();
-    iprintf("\x1b[0;0H");
+    sassert(textVideoBufferSub != nullptr, "BaseMenu::update - textVideoBufferSub is null");
 
     // blink the "Pause" text
     if (frame % 60 < 30)
     {
-        iprintf("%s \n", pauseMessage.c_str());
-    }
-    else
-    {
-        iprintf("\n");
+        textCtrl->drawText(pauseMessage, font, textVideoBufferSub, 0, 0, 2);
     }
 
     // display options
     for (int i = 0; i < visibleOptions && startIndex + i < optionCount; i++)
     {
         int option = startIndex + i;
-        iprintf("%c %s\n", option == selectedOption ? '>' : ' ', options[option].name);
+        if (option == selectedOption)
+            textCtrl->drawText(options[option].name, font, textVideoBufferSub, 10, 8 + i * 9, TextColor::Blue);
+        else
+            textCtrl->drawText(options[option].name, font, textVideoBufferSub, 10, 8 + i * 9, TextColor::White);
     }
 
     // load selectedOption's background
@@ -140,6 +156,7 @@ ViewState BaseMenu::changeMenu(MenuOption* newOptions, int newOptionCount)
 
 void BaseMenu::prevOption()
 {
+    textCtrl->clearScreen(textVideoBufferSub);
     // if we're in a submenu, return to main menu
     if (!prevOptions.empty())
     {

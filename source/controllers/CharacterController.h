@@ -1,10 +1,12 @@
 #pragma once
+#include <stdint.h>
+
 #include "controllers/AnimationController.h"
+#include "controllers/CameraController.h"
 #include "core/enums.h"
 #include "core/geometry.h"
 #include "core/globals.h"
 #include "core/structs.h"
-#include <stdint.h>
 
 // models
 #include "models/kotone.h"
@@ -30,16 +32,12 @@ class CharacterController
     const float worldOffsetZ;
     const Point2D<float> characterSize;
 
-    // movement and viewpoint
+    CameraMode cameraMode = CameraMode::Static;
+    // movement
     const float speed;
-    const float angleIncrement;
-    const float distance;
-    const float lookAhead;
-    const bool fixedCamera;
 
     // translation (mutable)
     float height = 0.0;
-    float angle = 0.0;
     Point2D<float> characterTranslate = Point2D<float>(0.0, 0.0);
     float characterFacingAngle = 0.0f;
 
@@ -51,26 +49,18 @@ class CharacterController
                         float iWorldOffsetZ,
                         Point2D<float> iCharacterSize,
                         float iSpeed,
-                        float iAngleIncrement,
-                        float iDistance,
-                        float iLookAhead,
-                        float iAngle,
                         float iHeight,
                         Point2D<float> iCharacterTranslate,
-                        float iCharacterFacingAngle,
-                        bool iFixedCamera)
+                        float iCharacterFacingAngle)
         : mapWidth(iMapWidth), mapHeight(iMapHeight), collisionMap(iCollisionMap), tileSize(iTileSize),
-          worldOffsetX(iWorldOffsetX), worldOffsetZ(iWorldOffsetZ), characterSize(iCharacterSize), speed(iSpeed),
-          angleIncrement(iAngleIncrement), distance(iDistance), lookAhead(iLookAhead), fixedCamera(iFixedCamera)
+          worldOffsetX(iWorldOffsetX), worldOffsetZ(iWorldOffsetZ), characterSize(iCharacterSize), speed(iSpeed)
     {
-        // set inital position
-        angle = iAngle;
         height = iHeight;
         characterTranslate = iCharacterTranslate;
         characterFacingAngle = iCharacterFacingAngle;
     };
 
-    CameraPosition update(u32 keys);
+    void update(u32 keys, CameraController* camera);
     CharacterPosition isCharacterAt();
     TileType isTileAt();
 

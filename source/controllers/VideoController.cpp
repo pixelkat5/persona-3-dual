@@ -216,6 +216,11 @@ ViewState VideoController::update()
 
 void VideoController::cleanup()
 {
+    if (musicCtrl != nullptr)
+    {
+        musicCtrl->cleanup();
+    }
+
     if (ramBuffer != nullptr)
     {
         dmaFillWords(0, bgGetGfxPtr(bg), frameSize);

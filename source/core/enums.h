@@ -280,7 +280,8 @@ enum class DebugOption
     DEBUG_DIALOGUE,
     TOGGLE_BILLBOARDS,
     TOGGLE_DEBUG_PRINT,
-    PLAY_CHARACTER_ANIM
+    PLAY_CHARACTER_ANIM,
+    CYCLE_CAMERA_MODE
 };
 
 enum class ModelVersion

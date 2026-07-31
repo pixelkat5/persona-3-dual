@@ -30,7 +30,7 @@ class MainMenuComponent : public BaseMenu
     MenuOption settingOptions[SETTING_OPTIONS] = {
         {"Change Intro Video", -1, MENU_BIND(MainMenuComponent, settingOptionSelected)},
         {"Toggle FEMC Mode", -1, MENU_BIND(MainMenuComponent, settingOptionSelected)},
-        {"v0.6", -1, nullptr},
+        {"v1.0.0", -1, nullptr},
     };
 
     MenuOption settingIntroOptions[SETTING_INTRO_OPTIONS] = {
@@ -52,5 +52,9 @@ class MainMenuComponent : public BaseMenu
     GraphicsController* graphicsCtrl = GraphicsController::getInstance();
 
   public:
-    void init(int iBgSlot, bool* isActive, const std::string& iPauseMessage = "") override;
+    void init(int iBgSlot,
+              bool* isActive,
+              uint16_t* iTextVideoBuffer,
+              uint16_t* iTextVideoBufferSub,
+              const std::string& iPauseMessage = "") override;
 };

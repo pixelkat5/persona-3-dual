@@ -11,6 +11,7 @@
                 "${workspaceFolder}/include/**",
                 "${workspaceFolder}/source/**",
                 "${workspaceFolder}/build",
+                "${workspaceFolder}/libs/**",
                 "${env:DEVKITPRO}/libnds/include/**",
                 "${env:DEVKITPRO}/devkitARM/arm-none-eabi/include/**",
                 "${env:DEVKITPRO}/calico/include"

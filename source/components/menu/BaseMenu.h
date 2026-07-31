@@ -3,6 +3,7 @@
 #define MENU_BIND(ClassName, Method) reinterpret_cast<ViewState (BaseMenu::*)()>(&ClassName::Method)
 
 #include "controllers/MusicController.h"
+#include "controllers/TextController.h"
 #include "core/structs.h"
 #include <maxmod9.h>
 #include <nds.h>
@@ -36,7 +37,15 @@ class BaseMenu
     ViewState nextViewState = ViewState::KEEP_CURRENT;
 
   public:
-    virtual void init(int iBgSlot, bool* isActive, const std::string& iPauseMessage = "Pause");
+    virtual void init(int iBgSlot,
+                      bool* isActive,
+                      uint16_t* iTextVideoBuffer,
+                      uint16_t* iTextVideoBufferSub,
+                      const std::string& iPauseMessage = "Pause");
+    /**
+     * @brief Resets the menu to its initial state.
+     */
+    virtual void reset();
     virtual ViewState update(int keys);
     void cancelSFX();
     ViewState changeMenu(MenuOption* newOptions, int newOptionCount);
@@ -44,4 +53,8 @@ class BaseMenu
 
   protected:
     MusicController* musicCtrl = MusicController::getInstance();
+    TextController* textCtrl = TextController::getInstance();
+    Font* font = textCtrl->loadFont("cosmetica", 12);
+    uint16_t* textVideoBuffer = nullptr;
+    uint16_t* textVideoBufferSub = nullptr;
 };

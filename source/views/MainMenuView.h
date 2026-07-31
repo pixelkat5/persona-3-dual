@@ -13,6 +13,7 @@ class MainMenuView : public BaseView
     // for silhouette animation
     int silhouetteX = -256;
     int silhouetteY = 192;
+    bool isSilhouetteStillMoving = true;
 
     // for bottom screen text animation
     int brightness = 0;

@@ -12,8 +12,7 @@ void IntroView::init()
 {
     // set video mode for 3 text layers and 1 extended rotation layer
     videoSetMode(MODE_3_2D);
-    // set sub video mode for 4 text layers
-    videoSetModeSub(MODE_0_2D);
+    videoSetModeSub(MODE_3_2D);
 
     // map vram bank A and D to main engine background (slot 0)
     vramSetBankA(VRAM_A_MAIN_BG_0x06000000);
@@ -38,10 +37,8 @@ void IntroView::init()
     bg[3] = bgInit(3, BgType_ExRotation, BgSize_ER_512x512, 19, 8);    // overlay
     bgSubLogo = bgInitSub(0, BgType_Text8bpp, BgSize_T_256x256, 0, 1); // logo
     bgSubSky = bgInitSub(1, BgType_Text8bpp, BgSize_T_256x256, 1, 2);  // sky (sub screen)
-
-    // setup console
-    consoleInit(&console, 2, BgType_Text4bpp, BgSize_T_256x256, 4, 5, false, true);
-    consoleSelect(&console);
+    bgSubText = bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 5, 0);    // text (sub screen)
+    textVideoBufferSub = (uint16_t*)bgGetGfxPtr(bgSubText);
 
     // need to set priority to properly display
     // 0 is highest, 3 is lowest
@@ -50,9 +47,9 @@ void IntroView::init()
     bgSetPriority(bg[2], 3); // sky
     bgSetPriority(bg[3], 2); // overlay
     // adjust sub screen image and console to sit correctly on each other
-    bgSetPriority(console.bgId, 0);
     bgSetPriority(bgSubLogo, 1);
     bgSetPriority(bgSubSky, 2);
+    bgSetPriority(bgSubText, 0);
 
     // reset background vram
     // 512x512 backgrounds use 8192 bytes of map memory
@@ -111,6 +108,8 @@ void IntroView::init()
     dmaCopy(attribution.pal, &VRAM_H_EXT_PALETTE[0][0], attribution.palLen);
     dmaCopy(skySub.pal, &VRAM_H_EXT_PALETTE[1][0], skySub.palLen);
 
+    textCtrl->loadDefaultPalette();
+
     // map vram to extended palette
     vramSetBankE(VRAM_E_BG_EXT_PALETTE);
     vramSetBankH(VRAM_H_SUB_BG_EXT_PALETTE);
@@ -160,7 +159,7 @@ void IntroView::init()
     musicCtrl->init((fatBasePath + "music/menus/title/tightrope.pcm").c_str(), 17.962f, 66.082f);
 
     // hide sub screen text and attribution text layer
-    REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG2 | BLEND_SRC_BG0 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
+    REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG3 | BLEND_SRC_BG0 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
     REG_BLDALPHA_SUB = 0 | (16 << 8);
 
     // hide main skyBackground
@@ -268,10 +267,7 @@ ViewState IntroView::update()
 
     if (animateText)
     {
-        // NOTE: The text uses ansi escape sequences.
-        // The bottom screen has 24 lines, 32 columns (from 0 -> 23, 0 -> 32)
-        // Center the text by doing (32 / 2) - (len / 2)
-        iprintf("\x1b[11;8HPress Any Button");
+        textCtrl->drawText("Press Any Button", font, textVideoBufferSub, 80, 88, TextColor::White);
 
         durationCounter++;
 
@@ -291,7 +287,7 @@ ViewState IntroView::update()
                 textAlphaDirection = 1; // Start fading in
             }
 
-            REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG2 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
+            REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG3 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
             REG_BLDALPHA_SUB = textAlpha | ((16 - textAlpha) << 8);
         }
     }
@@ -352,7 +348,7 @@ ViewState IntroView::update()
     if (logoOpacity >= 16 && !animateText)
     {
         animateText = true;
-        REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG2 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
+        REG_BLDCNT_SUB = BLEND_ALPHA | BLEND_SRC_BG3 | BLEND_DST_BG0 | BLEND_DST_BG1 | BLEND_DST_BACKDROP;
         REG_BLDALPHA_SUB = textAlpha | ((16 - textAlpha) << 8);
     }
 
